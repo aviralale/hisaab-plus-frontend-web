@@ -30,7 +30,7 @@ import { toast } from "sonner";
 import { Product, StockEntry } from "@/types";
 import { dummyProducts, dummyStockEntries } from "@/lib/dummy-data";
 
-export default function StockEntriesPage() {
+function StockEntriesPage() {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -274,3 +274,15 @@ export default function StockEntriesPage() {
     </div>
   );
 }
+
+import DashboardLayout from "@/components/layouts/DashboardLayout";
+
+const StockEntriesPageWithLayout = () => {
+  return (
+    <DashboardLayout>
+      <StockEntriesPage />
+    </DashboardLayout>
+  );
+};
+
+export default StockEntriesPageWithLayout;

@@ -40,7 +40,7 @@ interface Supplier {
   address: string;
 }
 
-export default function SuppliersPage() {
+function SuppliersPage() {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -460,3 +460,15 @@ export default function SuppliersPage() {
     </div>
   );
 }
+
+import DashboardLayout from "@/components/layouts/DashboardLayout";
+
+const SuppliersPageWithLayout = () => {
+  return (
+    <DashboardLayout>
+      <SuppliersPage />
+    </DashboardLayout>
+  );
+};
+
+export default SuppliersPageWithLayout;

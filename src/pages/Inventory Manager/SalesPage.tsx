@@ -18,7 +18,7 @@ import { dummySales } from "@/lib/dummy-data";
 import { toast } from "sonner";
 import { Sale } from "@/types";
 
-export default function SalesPage() {
+function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -247,3 +247,15 @@ export default function SalesPage() {
     </div>
   );
 }
+
+import DashboardLayout from "@/components/layouts/DashboardLayout";
+
+const SalesPageWithLayout = () => {
+  return (
+    <DashboardLayout>
+      <SalesPage />
+    </DashboardLayout>
+  );
+};
+
+export default SalesPageWithLayout;

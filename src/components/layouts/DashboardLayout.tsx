@@ -1,6 +1,14 @@
 import { ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Home, Package, ShoppingCart, Users, Menu } from "lucide-react";
+import {
+  Home,
+  Package,
+  ShoppingCart,
+  Users,
+  Menu,
+  Box,
+  PackageOpenIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -10,16 +18,19 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { ModeToggle } from "../mode-toggle";
 
 type DashboardLayoutProps = {
   children: ReactNode;
 };
 
 const navItems = [
-  { name: "Home", icon: Home, path: "/" },
+  { name: "Home", icon: Home, path: "/dashboard" },
   { name: "Products", icon: Package, path: "/products" },
-  { name: "Orders", icon: ShoppingCart, path: "/orders" },
-  { name: "Customers", icon: Users, path: "/customers" },
+  { name: "Sales", icon: ShoppingCart, path: "/sales" },
+  { name: "Suppliers", icon: Users, path: "/suppliers" },
+  { name: "Stock Entries", icon: Box, path: "/stock-entries" },
+  { name: "Categories", icon: PackageOpenIcon, path: "/categories" },
 ];
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
@@ -58,6 +69,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
             </SheetHeader>
             <nav className="mt-4 space-y-2">{renderNavItems()}</nav>
           </SheetContent>
+          <ModeToggle />
         </Sheet>
       </div>
 
@@ -65,6 +77,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <aside className="hidden md:block w-64 bg-background border-r px-4 py-6">
         <h1 className="text-2xl font-bold mb-6">My Dashboard</h1>
         <nav className="space-y-2">{renderNavItems()}</nav>
+        <ModeToggle />
       </aside>
 
       {/* Main content */}

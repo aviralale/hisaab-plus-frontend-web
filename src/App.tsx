@@ -1,7 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import LoginPage from "./pages/Authentication/Login";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ModeToggle } from "./components/mode-toggle";
 import RegisterPage from "./pages/Authentication/Register";
 import Dashboard from "./pages/Authentication/Dashboard";
 import ProductsPage from "./pages/Inventory Manager/ProductsPage";
@@ -14,7 +13,8 @@ import CategoriesPage from "./pages/Inventory Manager/CategoryPage";
 import SuppliersPage from "./pages/Inventory Manager/SupplierPage";
 import StockEntriesPage from "./pages/Inventory Manager/StockEntriesPage";
 import SalesPage from "./pages/Inventory Manager/SalesPage";
-import SaleDetailPage from "./pages/Inventory Manager/SalesDetailPage";
+import NewSalePage from "./pages/Inventory Manager/NewSalePage";
+import SaleDetailPageWithLayout from "./pages/Inventory Manager/SalesDetailPage";
 
 function App() {
   return (
@@ -28,14 +28,14 @@ function App() {
         <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/stock-entries" element={<StockEntriesPage />} />
         <Route path="/sales" element={<SalesPage />} />
-        <Route path="/sales/:id" element={<SaleDetailPage />} />
+        <Route path="/sales/new" element={<NewSalePage />} />
+        <Route path="/sales/:id" element={<SaleDetailPageWithLayout />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/products/edit/:id" element={<ProductForm />} />
         <Route path="/products/new" element={<ProductForm />} />
       </Routes>
       <Toaster richColors />
-      <ModeToggle />
       <Footer />
     </ThemeProvider>
   );

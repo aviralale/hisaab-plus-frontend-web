@@ -350,7 +350,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="flex items-center p-4 border rounded-lg bg-yellow-50">
+                  <div className="flex items-center p-4 border rounded-lg">
                     <AlertCircle className="h-6 w-6 text-yellow-600 mr-3" />
                     <div>
                       <h3 className="font-medium">Low Stock Alert</h3>
@@ -361,7 +361,7 @@ const Dashboard = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center p-4 border rounded-lg bg-red-50">
+                  <div className="flex items-center p-4 border rounded-lg ">
                     <AlertCircle className="h-6 w-6 text-red-600 mr-3" />
                     <div>
                       <h3 className="font-medium">Out of Stock Alert</h3>

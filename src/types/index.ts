@@ -79,6 +79,7 @@ export interface Sale {
   id: number;
   customer_name: string;
   customer_phone: string;
+  customer_email?: string;
   sale_date: string;
   total_amount: number;
   amount_paid: number;

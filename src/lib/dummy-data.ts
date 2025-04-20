@@ -1,3 +1,5 @@
+// src/services/mockData.ts
+
 import {
   Business,
   User,
@@ -205,7 +207,7 @@ export const dummyStockEntries: StockEntry[] = [
     unit_cost: 800,
     date_added: "2023-03-15T10:00:00Z",
     created_by: 1,
-    notes: "Test",
+    notes: "Initial stock",
   },
   {
     id: 2,
@@ -227,7 +229,7 @@ export const dummyStockEntries: StockEntry[] = [
   },
 ];
 
-export const dummySaleItems: SaleItem[] = [
+const dummySaleItems: SaleItem[] = [
   {
     id: 1,
     product: 1,
@@ -251,6 +253,7 @@ export const dummySales: Sale[] = [
     id: 1,
     customer_name: "Jane Doe",
     customer_phone: "+1123456789",
+    customer_email: "jane.doe@example.com",
     sale_date: "2023-04-10T14:30:00Z",
     total_amount: 1200,
     amount_paid: 1200,
@@ -258,7 +261,7 @@ export const dummySales: Sale[] = [
     payment_method: "Credit Card",
     created_by: 2,
     items: [dummySaleItems[0]],
-    invoice_number: "1122334455",
+    invoice_number: "INV-230410-001",
     payment_status: "paid",
   },
   {
@@ -272,23 +275,22 @@ export const dummySales: Sale[] = [
     payment_method: "Cash",
     created_by: 3,
     items: [dummySaleItems[1]],
-    payment_status: "paid",
-
-    invoice_number: "1122334456",
+    invoice_number: "INV-230412-001",
+    payment_status: "partial",
   },
   {
     id: 3,
     customer_name: "Alice Johnson",
     customer_phone: "+1456789012",
+    customer_email: "alice@example.com",
     sale_date: "2023-04-15T10:15:00Z",
     total_amount: 2998,
     amount_paid: 2998,
     balance: 0,
     payment_method: "Bank Transfer",
     created_by: 1,
+    items: [dummySaleItems[0], dummySaleItems[1]],
+    invoice_number: "INV-230415-001",
     payment_status: "paid",
-    items: [...dummySaleItems],
-
-    invoice_number: "1122334457",
   },
 ];
