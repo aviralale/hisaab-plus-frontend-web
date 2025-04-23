@@ -1,0 +1,172 @@
+// src/contexts/AuthContext.tsx
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { toast } from "sonner";
+import { LoginUser } from "@/types";
+import { loginUser, axiosInstance } from "@/services/api";
+
+interface User {
+  id: number;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  // Add other user properties as needed
+}
+
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  login: (credentials: LoginUser) => Promise<boolean>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // This function will check if there's a valid auth token and fetch user data
+  const fetchUserData = async () => {
+    try {
+      console.log("Fetching user data...");
+      console.log("Current token:", localStorage.getItem("access"));
+
+      const response = await axiosInstance.get("/auth/users/me/");
+      console.log("User data received:", response.data);
+
+      setUser(response.data);
+      setIsAuthenticated(true);
+      return true;
+    } catch (error) {
+      console.error("Failed to fetch user data:", error);
+
+      // Don't reset authentication state here - let the calling function decide
+      return false;
+    }
+  };
+
+  // Initial authentication check on component mount
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      setLoading(true);
+      const token = localStorage.getItem("access");
+
+      if (token) {
+        try {
+          const success = await fetchUserData();
+          if (!success) {
+            // Token is invalid or expired despite refresh attempt
+            localStorage.removeItem("access");
+            localStorage.removeItem("refresh");
+            setIsAuthenticated(false);
+            setUser(null);
+          }
+        } catch (error) {
+          console.error("Error during authentication check:", error);
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+      } else {
+        // No token found, ensure user is logged out
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+
+      setLoading(false);
+    };
+
+    checkAuthStatus();
+  }, []);
+  const login = async (credentials: LoginUser): Promise<boolean> => {
+    setLoading(true);
+    try {
+      // Clear any existing tokens first
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+
+      // Get tokens from login request
+      const data = await loginUser(credentials);
+
+      // Ensure token was received
+      if (!data || !data.access) {
+        toast.error("Login failed. No authentication token received.");
+        setLoading(false);
+        return false;
+      }
+
+      // Give the system a moment to save tokens before fetching user data
+      // This is important as the axiosInstance interceptor needs time to pick up the new token
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Now fetch user data
+      const success = await fetchUserData();
+
+      if (!success) {
+        toast.error("Failed to retrieve user information.");
+        setLoading(false);
+        return false;
+      }
+
+      toast.success("Login successful!");
+
+      // Only navigate after user data is successfully fetched
+      const origin = location.state?.from?.pathname || "/dashboard";
+      navigate(origin);
+
+      setLoading(false);
+      return true;
+    } catch (error: any) {
+      const errorMessage =
+        error.response?.data?.detail ||
+        "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
+      setLoading(false);
+      return false;
+    }
+  };
+  const logout = () => {
+    localStorage.removeItem("access");
+    localStorage.removeItem("refresh");
+    localStorage.removeItem("email");
+    setUser(null);
+    setIsAuthenticated(false);
+    navigate("/login");
+    toast.success("Logged out successfully");
+  };
+
+  const value: AuthContextType = {
+    user,
+    loading,
+    isAuthenticated,
+    login,
+    logout,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};

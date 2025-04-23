@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Loader2, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import HisaabPlusLogo from "@/assets/images/favicon-white.png";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -19,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { loginUser } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Define form validation schema
 const loginFormSchema = z.object({
@@ -38,7 +38,6 @@ export function LoginForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginSuccess, setLoginSuccess] = useState(false);
-  const navigate = useNavigate();
   const location = useLocation();
 
   // Check for success message from registration
@@ -54,18 +53,26 @@ export function LoginForm({
     },
   });
 
+  const { login } = useAuth();
+
   const onSubmit = async (data: LoginFormValues) => {
     try {
       setIsSubmitting(true);
       setLoginError(null);
-      loginUser(data);
-      console.log("Login submitted with:", data);
-      setLoginSuccess(true);
 
-      // Redirect after 1 second
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 1000);
+      // Use the context's login function, which will handle tokens, API calls, and navigation
+      const success = await login({
+        email: data.email,
+        password: data.password,
+      });
+
+      // The context.login function handles most things, so we just need to show success UI
+      if (success) {
+        setLoginSuccess(true);
+        // The context's login already handles navigation, so no timeout needed
+      } else {
+        setLoginError("Login failed. Please check your credentials.");
+      }
     } catch (error) {
       console.error("Login error:", error);
       setLoginError(
@@ -77,7 +84,6 @@ export function LoginForm({
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className={cn("w-full max-w-5xl mx-auto", className)} {...props}>
       <Card className="overflow-hidden shadow-lg">

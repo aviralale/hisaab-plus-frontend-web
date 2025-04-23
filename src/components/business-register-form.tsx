@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -44,6 +43,7 @@ import {
   CheckCircle,
   Loader2,
 } from "lucide-react";
+import { registerBusiness } from "@/services/api";
 
 // Define business types for type safety
 const businessTypes = [
@@ -165,12 +165,20 @@ const timezones = [
   { value: "Asia/Tokyo", label: "Tokyo (GMT+9)" },
 ];
 
+type ApiError = {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+};
+
 export function BusinessCreationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
-  const apiUrl = import.meta.env.VITE_API_URL || "";
 
   // Initialize form with zod resolver
   const form = useForm<BusinessFormValues>({
@@ -203,53 +211,39 @@ export function BusinessCreationForm() {
       setIsSubmitting(true);
       setError(null);
 
-      // Get user token from local storage
-      const token = localStorage.getItem("authToken");
-
-      if (!token) {
-        throw new Error("You must be logged in to create a business");
-      }
-
-      // Submit business data to API
-      const response = await axios.post(
-        `${apiUrl}/businesses/`,
-        {
-          name: data.name,
-          legalName: data.legalName || data.name,
-          businessType: data.businessType,
-          industry: data.industry,
-          contactInfo: {
-            email: data.email,
-            phone: data.phone,
-          },
-          address: {
-            street: data.address,
-            city: data.city,
-            state: data.state,
-            zipCode: data.zipCode,
-            country: data.country,
-          },
-          taxInfo: {
-            taxId: data.taxId,
-            fiscalYearEnd: data.fiscalYearEnd,
-          },
-          settings: {
-            currencyCode: data.currencyCode,
-            timezone: data.timezone,
-            isActive: data.isActive,
-          },
+      // Prepare the business data
+      const businessData = {
+        name: data.name,
+        legalName: data.legalName || data.name,
+        businessType: data.businessType,
+        industry: data.industry,
+        contactInfo: {
+          email: data.email,
+          phone: data.phone,
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+        address: {
+          street: data.address,
+          city: data.city,
+          state: data.state,
+          zipCode: data.zipCode,
+          country: data.country,
+        },
+        taxInfo: {
+          taxId: data.taxId,
+          fiscalYearEnd: data.fiscalYearEnd,
+        },
+        settings: {
+          currencyCode: data.currencyCode,
+          timezone: data.timezone,
+          isActive: data.isActive,
+        },
+      };
 
-      console.log("Business created:", response.data);
+      const response = await registerBusiness(businessData);
+
+      console.log("Business created:", response);
       setSuccess(true);
 
-      // Redirect to business dashboard after short delay
       setTimeout(() => {
         navigate("/dashboard", {
           state: {
@@ -257,24 +251,18 @@ export function BusinessCreationForm() {
           },
         });
       }, 2000);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Business creation error:", err);
-
-      if (axios.isAxiosError(err)) {
-        setError(
-          err.response?.data?.message ||
-            "Failed to create business. Please try again."
-        );
-      } else if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
+      const error = err as ApiError;
+      setError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Failed to create business. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
-
   return (
     <div className="w-full max-w-4xl mx-auto py-8">
       <Card className="shadow-md">

@@ -109,5 +109,65 @@ export interface LoginUser {
 
 export interface RegisterBusiness {
   name: string;
-  address: string;
+  legalName?: string;
+  businessType: string;
+  industry: string;
+  contactInfo: {
+    email: string;
+    phone: string;
+  };
+  address: {
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  };
+  taxInfo: {
+    taxId?: string;
+    fiscalYearEnd?: string;
+  };
+  settings: {
+    currencyCode: string;
+    timezone: string;
+    isActive: boolean;
+  };
+}
+
+export interface RecentSale {
+  id: number;
+  customer: string;
+  amount: number;
+  status: string;
+  sale_date: string;
+}
+
+export interface MonthlySaleData {
+  name: string;
+  amount: number;
+}
+
+export interface LowStockProducts {
+  id: number;
+  name: string;
+  sku: string;
+  stock: number;
+  reorder_level: number;
+}
+
+export interface DashboardTypes {
+  business_name: string;
+  total_products: number;
+  low_stock_count: number;
+  low_stock_products: LowStockProducts[]; // it's an array
+  out_of_stock_products: number;
+  total_suppliers: number;
+  total_categories: number;
+  sales_today: number;
+  sales_this_month: number;
+  inventory_value: number;
+  recent_sales: RecentSale[];
+  monthly_sales_data: MonthlySaleData[];
+  percentage_change_from_yesterday: number;
+  percentage_change_from_30_days_ago: number;
 }

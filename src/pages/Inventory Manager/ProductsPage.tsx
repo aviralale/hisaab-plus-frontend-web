@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   PlusCircle,
@@ -38,89 +38,33 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
-
-const products = [
-  {
-    id: 1,
-    name: "Laptop HP 15",
-    sku: "LAP-HP-15",
-    image: "https://placeholder.com/150",
-    category_name: "Laptops",
-    supplier_name: "HP Inc.",
-    stock: 10,
-    cost_price: 400.0,
-    selling_price: 550.0,
-    profit_margin: "37.5%",
-    needs_reorder: false,
-    is_active: true,
-  },
-  {
-    id: 2,
-    name: "Dell XPS 13",
-    sku: "LAP-DELL-13",
-    image: "https://placeholder.com/150",
-    category_name: "Laptops",
-    supplier_name: "Dell Technologies",
-    stock: 7,
-    cost_price: 800.0,
-    selling_price: 1200.0,
-    profit_margin: "50%",
-    needs_reorder: false,
-    is_active: true,
-  },
-  {
-    id: 3,
-    name: "USB-C Cable",
-    sku: "USB-C-01",
-    image: "https://placeholder.com/150",
-    category_name: "Accessories",
-    supplier_name: "Anker",
-    stock: 4,
-    cost_price: 5.0,
-    selling_price: 12.5,
-    profit_margin: "150%",
-    needs_reorder: true,
-    is_active: true,
-  },
-  {
-    id: 4,
-    name: "Wireless Mouse",
-    sku: "ACC-MS-W1",
-    image: "https://placeholder.com/150",
-    category_name: "Accessories",
-    supplier_name: "Logitech",
-    stock: 2,
-    cost_price: 15.0,
-    selling_price: 29.99,
-    profit_margin: "99.9%",
-    needs_reorder: true,
-    is_active: true,
-  },
-  {
-    id: 5,
-    name: "HDMI Cable 2m",
-    sku: "HDMI-2M",
-    image: "https://placeholder.com/150",
-    category_name: "Cables",
-    supplier_name: "Belkin",
-    stock: 0,
-    cost_price: 8.0,
-    selling_price: 19.99,
-    profit_margin: "149.9%",
-    needs_reorder: true,
-    is_active: false,
-  },
-];
+import { useApi } from "@/contexts/ApiContext";
+import { Product } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ProductsPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
+
+  const { get } = useApi();
+  const { isAuthenticated } = useAuth();
+
+  const fetchProducts = async () => {
+    const response = await get<Product[]>("/products/");
+    console.log("Products: ", response);
+    setProducts(response);
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, [isAuthenticated]);
 
   const filteredProducts = products.filter(
     (product) =>
@@ -219,7 +163,7 @@ const ProductsPage = () => {
                         <span>{product.stock}</span>
                       )}
                     </TableCell>
-                    <TableCell>NPR{product.selling_price.toFixed(2)}</TableCell>
+                    <TableCell>NPR{product.selling_price}</TableCell>
                     <TableCell>
                       {product.is_active ? (
                         <Badge

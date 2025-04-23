@@ -1,12 +1,13 @@
-// import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ArrowUpRight,
   BarChart3,
   Package,
-  ShoppingCart,
   AlertCircle,
+  ArrowDownIcon,
+  ArrowUpIcon,
+  DollarSign,
+  ShoppingBag,
 } from "lucide-react";
 import {
   LineChart,
@@ -30,122 +31,107 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { useApi } from "@/contexts/ApiContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useEffect, useState } from "react";
+import { DashboardTypes } from "@/types";
 
-// Dummy data based on DashboardStatsSerializer
-const dashboardStats = {
-  total_products: 120,
-  low_stock_products: 15,
-  out_of_stock_products: 5,
-  total_suppliers: 8,
-  total_categories: 12,
-  sales_today: 1250.75,
-  sales_this_month: 28450.6,
-  inventory_value: 45780.25,
+interface PercentageChangeIndicatorProps {
+  change: number;
+  timeframe: string;
+}
+
+const PercentageChangeIndicator = ({
+  change,
+  timeframe,
+}: PercentageChangeIndicatorProps) => {
+  // Determine if change is positive, negative, or zero
+  const isPositive = change > 0;
+  const isNegative = change < 0;
+
+  // Absolute value for display
+  const displayValue = Math.abs(change);
+
+  return (
+    <p className="text-xs flex items-center gap-1">
+      {isPositive && (
+        <>
+          <ArrowUpIcon className="w-3 h-3 text-green-500" />
+          <span className="text-green-500">+{displayValue}%</span>
+        </>
+      )}
+      {isNegative && (
+        <>
+          <ArrowDownIcon className="w-3 h-3 text-red-500" />
+          <span className="text-red-500">-{displayValue}%</span>
+        </>
+      )}
+      {!isPositive && !isNegative && <span className="text-gray-500">0%</span>}
+      <span className="text-muted-foreground ml-1">from {timeframe}</span>
+    </p>
+  );
 };
 
-// Dummy data for charts
-const monthlySalesData = [
-  { name: "Jan", amount: 15000 },
-  { name: "Feb", amount: 18000 },
-  { name: "Mar", amount: 22000 },
-  { name: "Apr", amount: 20000 },
-  { name: "May", amount: 25000 },
-  { name: "Jun", amount: 27000 },
-  { name: "Jul", amount: 26000 },
-  { name: "Aug", amount: 28000 },
-  { name: "Sep", amount: 25000 },
-  { name: "Oct", amount: 26000 },
-  { name: "Nov", amount: 28500 },
-  { name: "Dec", amount: 28450 },
-];
-
-// Dummy data for recent sales
-const recentSales = [
-  {
-    id: "S001",
-    date: "2025-04-19",
-    customer: "Walk-in Customer",
-    amount: 250.5,
-    status: "Completed",
-  },
-  {
-    id: "S002",
-    date: "2025-04-19",
-    customer: "John Doe",
-    amount: 525.75,
-    status: "Completed",
-  },
-  {
-    id: "S003",
-    date: "2025-04-18",
-    customer: "Jane Smith",
-    amount: 125.0,
-    status: "Completed",
-  },
-  {
-    id: "S004",
-    date: "2025-04-18",
-    customer: "Mike Johnson",
-    amount: 350.25,
-    status: "Completed",
-  },
-  {
-    id: "S005",
-    date: "2025-04-17",
-    customer: "Sarah Williams",
-    amount: 450.0,
-    status: "Completed",
-  },
-];
-
-// Dummy data for low stock products
-const lowStockProducts = [
-  { id: 1, name: "Laptop HP 15", sku: "LAP-HP-15", stock: 3, reorder_point: 5 },
-  { id: 2, name: "USB-C Cable", sku: "USB-C-01", stock: 4, reorder_point: 10 },
-  {
-    id: 3,
-    name: "Wireless Mouse",
-    sku: "ACC-MS-W1",
-    stock: 2,
-    reorder_point: 5,
-  },
-  { id: 5, name: "HDMI Cable 2m", sku: "HDMI-2M", stock: 0, reorder_point: 5 },
-  {
-    id: 4,
-    name: "Keyboard Wireless",
-    sku: "ACC-KB-W1",
-    stock: 1,
-    reorder_point: 5,
-  },
-];
-
 const Dashboard = () => {
+  const { get } = useApi();
+  const { isAuthenticated } = useAuth();
+  const [dashboardData, setDashboardData] = useState<DashboardTypes | null>(
+    null
+  );
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchDashboard();
+    }
+  }, [isAuthenticated]);
+
+  const fetchDashboard = async () => {
+    try {
+      const response = await get("/dashboard/");
+      setDashboardData(response.dashboard_stats);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  if (!dashboardData) {
+    return (
+      <DashboardLayout>
+        <div className="flex justify-center items-center h-96">
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-5">
         <h1 className="text-3xl font-bold tracking-tight">
-          Aviral ko Business
+          {dashboardData.business_name}
         </h1>
-
-        {/* Stats Cards */}
+        {/* Stats Cards - Now all using unified Card component structure */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {/* Card 1: Total Revenue */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">
                 Total Revenue
               </CardTitle>
-              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                NPR{dashboardStats.sales_this_month.toFixed(2)}
+                NPR {dashboardData.sales_this_month.toLocaleString()}
               </div>
-              <p className="text-xs text-muted-foreground">
-                +12% from last month
-              </p>
+              <PercentageChangeIndicator
+                change={dashboardData.percentage_change_from_30_days_ago}
+                timeframe="last month"
+              />
             </CardContent>
           </Card>
 
+          {/* Card 2: Products */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Products</CardTitle>
@@ -153,14 +139,15 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {dashboardStats.total_products}
+                {dashboardData.total_products}
               </div>
               <p className="text-xs text-muted-foreground">
-                {dashboardStats.low_stock_products} low stock items
+                {dashboardData.low_stock_count} low stock items
               </p>
             </CardContent>
           </Card>
 
+          {/* Card 3: Inventory Value */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">
@@ -170,28 +157,30 @@ const Dashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                NPR{dashboardStats.inventory_value.toFixed(2)}
+                NPR {dashboardData.inventory_value.toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">
-                Across {dashboardStats.total_categories} categories
+                Across {dashboardData.total_categories} categories
               </p>
             </CardContent>
           </Card>
 
+          {/* Card 4: Today's Sales */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">
                 Today's Sales
               </CardTitle>
-              <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
+              <ShoppingBag className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                NPR{dashboardStats.sales_today.toFixed(2)}
+                NPR {dashboardData.sales_today.toLocaleString()}
               </div>
-              <p className="text-xs text-muted-foreground">
-                +5% from yesterday
-              </p>
+              <PercentageChangeIndicator
+                change={dashboardData.percentage_change_from_yesterday}
+                timeframe="yesterday"
+              />
             </CardContent>
           </Card>
         </div>
@@ -214,7 +203,7 @@ const Dashboard = () => {
                 <CardContent className="h-80">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={monthlySalesData}
+                      data={dashboardData.monthly_sales_data}
                       margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                     >
                       <XAxis dataKey="name" />
@@ -239,35 +228,41 @@ const Dashboard = () => {
                   <CardTitle>Recent Transactions</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {recentSales.map((sale) => (
-                        <TableRow key={sale.id}>
-                          <TableCell className="font-medium">
-                            {sale.id}
-                          </TableCell>
-                          <TableCell>{sale.customer}</TableCell>
-                          <TableCell>NPR{sale.amount.toFixed(2)}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className="bg-green-100 text-green-800"
-                            >
-                              {sale.status}
-                            </Badge>
-                          </TableCell>
+                  {dashboardData.recent_sales.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No recent sales.
+                    </p>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>Customer</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Status</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {dashboardData.recent_sales.map((sale) => (
+                          <TableRow key={sale.id}>
+                            <TableCell className="font-medium">
+                              {sale.id}
+                            </TableCell>
+                            <TableCell>{sale.customer}</TableCell>
+                            <TableCell>NPR {sale.amount.toFixed(2)}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className="bg-green-100 text-green-800"
+                              >
+                                {sale.status}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -278,46 +273,52 @@ const Dashboard = () => {
                 <CardTitle>Low Stock Alerts</CardTitle>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Current Stock</TableHead>
-                      <TableHead>Reorder Point</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lowStockProducts.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-medium">
-                          {product.name}
-                        </TableCell>
-                        <TableCell>{product.sku}</TableCell>
-                        <TableCell>{product.stock}</TableCell>
-                        <TableCell>{product.reorder_point}</TableCell>
-                        <TableCell>
-                          {product.stock === 0 ? (
-                            <Badge
-                              variant="destructive"
-                              className="bg-red-100 text-red-800"
-                            >
-                              Out of Stock
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="secondary"
-                              className="bg-yellow-100 text-yellow-800"
-                            >
-                              Low Stock
-                            </Badge>
-                          )}
-                        </TableCell>
+                {dashboardData.low_stock_products.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No products are currently low in stock.
+                  </p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Product</TableHead>
+                        <TableHead>SKU</TableHead>
+                        <TableHead>Current Stock</TableHead>
+                        <TableHead>Reorder Point</TableHead>
+                        <TableHead>Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {dashboardData.low_stock_products.map((product) => (
+                        <TableRow key={product.id}>
+                          <TableCell className="font-medium">
+                            {product.name}
+                          </TableCell>
+                          <TableCell>{product.sku}</TableCell>
+                          <TableCell>{product.stock}</TableCell>
+                          <TableCell>{product.reorder_level}</TableCell>
+                          <TableCell>
+                            {product.stock === 0 ? (
+                              <Badge
+                                variant="destructive"
+                                className="bg-red-100 text-red-800"
+                              >
+                                Out of Stock
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="bg-yellow-100 text-yellow-800"
+                              >
+                                Low Stock
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -330,7 +331,7 @@ const Dashboard = () => {
               <CardContent className="h-96">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
-                    data={monthlySalesData}
+                    data={dashboardData.monthly_sales_data}
                     margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                   >
                     <XAxis dataKey="name" />
@@ -357,7 +358,7 @@ const Dashboard = () => {
                     <div>
                       <h3 className="font-medium">Low Stock Alert</h3>
                       <p className="text-sm text-gray-500">
-                        {dashboardStats.low_stock_products} products are below
+                        {dashboardData.low_stock_count} products are below
                         reorder point
                       </p>
                     </div>
@@ -368,7 +369,7 @@ const Dashboard = () => {
                     <div>
                       <h3 className="font-medium">Out of Stock Alert</h3>
                       <p className="text-sm text-gray-500">
-                        {dashboardStats.out_of_stock_products} products are out
+                        {dashboardData.out_of_stock_products} products are out
                         of stock
                       </p>
                     </div>
