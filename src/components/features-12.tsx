@@ -13,6 +13,10 @@ import {
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { BorderBeam } from "@/components/magicui/border-beam";
+import IMSInventoryDark from "@/assets/images/ims-inventory-dark.png";
+import IMSInvoice from "@/assets/images/ims-invoice.png";
+import IMSSales from "@/assets/images/ims-sales-dark.png";
+import IMSAnalytics from "@/assets/images/ims-analytics.png";
 
 export default function Features() {
   type ImageKey = "item-1" | "item-2" | "item-3" | "item-4";
@@ -20,19 +24,19 @@ export default function Features() {
 
   const images = {
     "item-1": {
-      image: "/charts.png",
+      image: IMSInventoryDark,
       alt: "Inventory tracking visualization",
     },
     "item-2": {
-      image: "/music.png",
+      image: IMSInvoice,
       alt: "Billing system interface",
     },
     "item-3": {
-      image: "/mail2.png",
+      image: IMSSales,
       alt: "Credit management dashboard",
     },
     "item-4": {
-      image: "/payments.png",
+      image: IMSAnalytics,
       alt: "Analytics dashboard",
     },
   };

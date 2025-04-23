@@ -91,3 +91,23 @@ export interface Sale {
   items: SaleItem[];
   note?: string;
 }
+
+export interface RegisterUser {
+  full_name: string;
+  email: string;
+  phone: string;
+  business?: string;
+  role?: string;
+  password: string;
+  re_password: string;
+}
+
+export interface LoginUser {
+  email: string;
+  password: string;
+}
+
+export interface RegisterBusiness {
+  name: string;
+  address: string;
+}

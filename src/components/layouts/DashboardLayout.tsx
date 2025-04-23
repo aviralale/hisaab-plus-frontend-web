@@ -75,7 +75,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
       {/* Desktop sidebar */}
       <aside className="hidden md:block w-64 bg-background border-r px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6">My Dashboard</h1>
+        <h1 className="text-2xl font-bold mb-6">Hisaab Plus</h1>
         <nav className="space-y-2">{renderNavItems()}</nav>
         <ModeToggle />
       </aside>

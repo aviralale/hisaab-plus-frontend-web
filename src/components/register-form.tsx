@@ -1,18 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Eye, EyeOff, Loader2, CheckCircle } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import {
   Form,
   FormControl,
@@ -28,11 +21,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Link, useNavigate } from "react-router-dom";
+import { registerUser } from "@/services/api";
+import { toast } from "sonner";
 
 // Define form validation schema with stronger validation
 const registerFormSchema = z
   .object({
-    fullName: z
+    full_name: z
       .string()
       .min(2, { message: "Name must be at least 2 characters." })
       .max(50, { message: "Name must be less than 50 characters." }),
@@ -59,17 +54,7 @@ const registerFormSchema = z
       .refine((val) => /[^A-Za-z0-9]/.test(val), {
         message: "Password must contain at least one special character.",
       }),
-    confirmPassword: z.string(),
-    businessName: z
-      .string()
-      .min(1, { message: "Business name is required." })
-      .optional()
-      .or(z.literal("")),
-    businessAddress: z
-      .string()
-      .min(1, { message: "Business address is required." })
-      .optional()
-      .or(z.literal("")),
+    re_password: z.string(),
     role: z.enum(["STAFF", "ACCOUNTANT", "OWNER"], {
       message: "Please select a valid role.",
     }),
@@ -77,9 +62,9 @@ const registerFormSchema = z
       message: "You must agree to the terms and conditions.",
     }),
   })
-  .refine((data) => data.password === data.confirmPassword, {
+  .refine((data) => data.password === data.re_password, {
     message: "Passwords do not match",
-    path: ["confirmPassword"],
+    path: ["re_password"],
   });
 
 type RegisterFormValues = z.infer<typeof registerFormSchema>;
@@ -103,7 +88,6 @@ export function RegisterForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
-  const [isCreatingBusiness, setIsCreatingBusiness] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -117,72 +101,25 @@ export function RegisterForm({
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerFormSchema),
     defaultValues: {
-      fullName: "",
+      full_name: "",
       email: "",
       phone: "",
       password: "",
-      confirmPassword: "",
-      businessName: "",
-      businessAddress: "",
-      role: "STAFF",
+      re_password: "",
+      role: "OWNER",
       agreeToTerms: false,
     },
     mode: "onBlur", // Validate on blur for better user experience
   });
 
-  const watchRole = form.watch("role");
-
-  // Effect to make business creation mandatory for owners
-  useEffect(() => {
-    if (watchRole === "OWNER") {
-      setIsCreatingBusiness(true);
-    }
-  }, [watchRole]);
-
-  const onSubmit = async (data: RegisterFormValues) => {
+  const handleSubmit = async (data: RegisterFormValues) => {
     try {
       setIsSubmitting(true);
       setRegistrationError(null);
+      await registerUser(data);
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      console.log("Form submitted with:", {
-        ...data,
-        business: isCreatingBusiness
-          ? {
-              name: data.businessName,
-              address: data.businessAddress,
-            }
-          : null,
-      });
-
-      // API call would go here
-      // Example:
-      // const response = await fetch('/api/register', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     full_name: data.fullName,
-      //     email: data.email,
-      //     phone: data.phone,
-      //     password: data.password,
-      //     business: isCreatingBusiness ? {
-      //       name: data.businessName,
-      //       address: data.businessAddress
-      //     } : null,
-      //     role: data.role
-      //   }),
-      // });
-
-      // if (!response.ok) {
-      //   const errorData = await response.json();
-      //   throw new Error(errorData.message || 'Registration failed');
-      // }
-
+      console.log("Form submitted with:", data);
       setRegistrationSuccess(true);
-
-      // Redirect after 2 seconds
       setTimeout(() => {
         navigate("/login", {
           state: {
@@ -190,6 +127,9 @@ export function RegisterForm({
               "Registration successful! Please sign in with your credentials.",
           },
         });
+        toast.success(
+          "Registration successful! Please sign in with your credentials."
+        );
       }, 2000);
     } catch (error) {
       console.error("Registration error:", error);
@@ -235,35 +175,6 @@ export function RegisterForm({
     </div>
   );
 
-  // Function to validate business fields based on conditions
-  const validateBusinessFields = (): boolean => {
-    if (watchRole === "OWNER" || isCreatingBusiness) {
-      if (
-        !form.getValues("businessName") ||
-        !form.getValues("businessAddress")
-      ) {
-        form.setError("businessName", {
-          type: "manual",
-          message: "Business name is required when creating a business.",
-        });
-        form.setError("businessAddress", {
-          type: "manual",
-          message: "Business address is required when creating a business.",
-        });
-        return false;
-      }
-    }
-    return true;
-  };
-
-  // Enhanced submit handler with additional validation
-  const handleSubmit = form.handleSubmit((data) => {
-    // Perform additional validation if needed
-    if (validateBusinessFields()) {
-      onSubmit(data);
-    }
-  });
-
   return (
     <div className={cn("w-full max-w-5xl mx-auto", className)} {...props}>
       <Card className="overflow-hidden shadow-lg">
@@ -286,13 +197,13 @@ export function RegisterForm({
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                <Card className=" p-4 rounded-lg text-center">
+                <Card className="p-4 rounded-lg text-center">
                   <h3 className="font-medium text-primary">Easy Invoicing</h3>
                   <p className="text-sm text-muted-foreground">
                     Create professional invoices in seconds
                   </p>
                 </Card>
-                <Card className=" p-4 rounded-lg text-center">
+                <Card className="p-4 rounded-lg text-center">
                   <h3 className="font-medium text-primary">
                     Financial Reports
                   </h3>
@@ -341,7 +252,10 @@ export function RegisterForm({
             )}
 
             <Form {...form}>
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form
+                onSubmit={form.handleSubmit(handleSubmit)}
+                className="space-y-5"
+              >
                 <div className="space-y-4">
                   {/* Personal Information Section */}
                   <div className="space-y-4">
@@ -351,7 +265,7 @@ export function RegisterForm({
 
                     <FormField
                       control={form.control}
-                      name="fullName"
+                      name="full_name"
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Full Name</FormLabel>
@@ -440,7 +354,7 @@ export function RegisterForm({
 
                       <FormField
                         control={form.control}
-                        name="confirmPassword"
+                        name="re_password"
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>Confirm Password</FormLabel>
@@ -464,107 +378,6 @@ export function RegisterForm({
                     </div>
                   </div>
 
-                  {/* Business Information Section */}
-                  <div className="space-y-4 pt-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium text-sm uppercase text-muted-foreground tracking-wide">
-                        Business Information
-                      </h3>
-
-                      {watchRole !== "OWNER" && (
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="createBusiness"
-                            checked={isCreatingBusiness}
-                            onCheckedChange={(checked) =>
-                              setIsCreatingBusiness(checked === true)
-                            }
-                          />
-                          <Label
-                            htmlFor="createBusiness"
-                            className="text-sm font-normal cursor-pointer"
-                          >
-                            I want to create a business
-                          </Label>
-                        </div>
-                      )}
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="role"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>User Role</FormLabel>
-                          <Select
-                            onValueChange={field.onChange}
-                            defaultValue={field.value}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select your role" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="STAFF">
-                                Business Staff
-                              </SelectItem>
-                              <SelectItem value="ACCOUNTANT">
-                                Business Accountant
-                              </SelectItem>
-                              <SelectItem value="OWNER">
-                                Business Owner
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormDescription className="text-xs">
-                            {watchRole === "OWNER"
-                              ? "As a business owner, you'll need to provide business details."
-                              : "Select the role that best describes your position."}
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {isCreatingBusiness && (
-                      <div className="space-y-4 rounded-md bg-muted/30 p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name="businessName"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Business Name</FormLabel>
-                                <FormControl>
-                                  <Input placeholder="ABC Company" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-
-                          <FormField
-                            control={form.control}
-                            name="businessAddress"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>Business Address</FormLabel>
-                                <FormControl>
-                                  <Input
-                                    placeholder="123 Main St, City"
-                                    {...field}
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Terms and Conditions */}
                   <FormField
                     control={form.control}
@@ -582,14 +395,14 @@ export function RegisterForm({
                             <p>
                               I agree to the{" "}
                               <Link
-                                to="/terms"
+                                to="/terms-and-conditions"
                                 className="text-primary hover:underline underline-offset-4"
                               >
                                 Terms of Service
                               </Link>{" "}
                               and{" "}
                               <Link
-                                to="/privacy"
+                                to="/privacy-policy"
                                 className="text-primary hover:underline underline-offset-4"
                               >
                                 Privacy Policy

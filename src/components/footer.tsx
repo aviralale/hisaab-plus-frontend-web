@@ -4,27 +4,27 @@ import { Link } from "react-router-dom";
 const links = [
   {
     title: "Features",
-    to: "#",
+    to: "/features",
   },
   {
     title: "Solution",
-    to: "#",
+    to: "/solutions",
   },
   {
     title: "Customers",
-    to: "#",
+    to: "/testimonials",
   },
   {
     title: "Pricing",
-    to: "#",
+    to: "/pricing",
   },
   {
     title: "Help",
-    to: "#",
+    to: "/help",
   },
   {
     title: "About",
-    to: "#",
+    to: "/about",
   },
 ];
 

@@ -19,6 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { loginUser } from "@/services/api";
 
 // Define form validation schema
 const loginFormSchema = z.object({
@@ -57,29 +58,8 @@ export function LoginForm({
     try {
       setIsSubmitting(true);
       setLoginError(null);
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
+      loginUser(data);
       console.log("Login submitted with:", data);
-
-      // API call would go here
-      // Example:
-      // const response = await fetch('/api/login', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({
-      //     email: data.email,
-      //     password: data.password,
-      //     remember_me: data.rememberMe
-      //   }),
-      // });
-
-      // if (!response.ok) {
-      //   const errorData = await response.json();
-      //   throw new Error(errorData.message || 'Login failed');
-      // }
-
       setLoginSuccess(true);
 
       // Redirect after 1 second
@@ -304,14 +284,14 @@ export function LoginForm({
             <div className="text-center text-xs text-muted-foreground pt-4">
               By signing in, you agree to our{" "}
               <Link
-                to="/terms"
+                to="/terms-and-conditions"
                 className="text-primary hover:underline underline-offset-4"
               >
                 Terms of Service
               </Link>{" "}
               and{" "}
               <Link
-                to="/privacy"
+                to="/privacy-policy"
                 className="text-primary hover:underline underline-offset-4"
               >
                 Privacy Policy
