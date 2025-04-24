@@ -125,7 +125,7 @@ const Dashboard = () => {
                 NPR {dashboardData.sales_this_month.toLocaleString()}
               </div>
               <PercentageChangeIndicator
-                change={dashboardData.percentage_change_from_30_days_ago}
+                change={dashboardData.percentage_increase_from_30_days_ago}
                 timeframe="last month"
               />
             </CardContent>
@@ -178,7 +178,7 @@ const Dashboard = () => {
                 NPR {dashboardData.sales_today.toLocaleString()}
               </div>
               <PercentageChangeIndicator
-                change={dashboardData.percentage_change_from_yesterday}
+                change={dashboardData.percentage_increase_from_yesterday}
                 timeframe="yesterday"
               />
             </CardContent>

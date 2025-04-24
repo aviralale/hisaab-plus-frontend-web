@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Package, Save, Trash2, Upload, X } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Upload, X } from "lucide-react";
+import { useApi } from "@/contexts/ApiContext";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -30,68 +32,108 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
-
-type Product = {
-  id: number;
-  name: string;
-  sku: string;
-  description: string;
-  image: File | null;
-  category: number;
-  supplier: number;
-  stock: number;
-  cost_price: number | "";
-  selling_price: number | "";
-  reorder_point: number | "";
-  is_active: boolean;
-};
+import { Product } from "@/types";
 
 type Option = {
   id: number;
   name: string;
 };
 
-const initialProduct: Product = {
-  id: 3,
-  name: "USB-C Cable",
-  sku: "USB-C-01",
-  description:
-    "Premium USB-C Cable with fast charging capability and data transfer speeds up to 10 Gbps.",
+// Update Product interface to correctly handle image types
+interface ExtendedProduct extends Omit<Product, "image"> {
+  image: string | null;
+  imagePreview?: string | null;
+}
+
+const emptyProduct: ExtendedProduct = {
+  id: 0,
+  name: "",
+  sku: "",
+  description: "",
   image: null,
-  category: 2,
-  supplier: 3,
-  stock: 4,
-  cost_price: 5.0,
-  selling_price: 12.5,
-  reorder_point: 10,
+  imagePreview: null,
+  category: 0,
+  supplier: 0,
+  stock: 0,
+  cost_price: 0,
+  selling_price: 0,
+  reorder_level: 0,
   is_active: true,
+  category_name: "",
+  supplier_name: "",
+  created_at: "",
 };
-
-const categories: Option[] = [
-  { id: 1, name: "Laptops" },
-  { id: 2, name: "Accessories" },
-  { id: 3, name: "Cables" },
-  { id: 4, name: "Phones" },
-  { id: 5, name: "Tablets" },
-];
-
-const suppliers: Option[] = [
-  { id: 1, name: "HP Inc." },
-  { id: 2, name: "Dell Technologies" },
-  { id: 3, name: "Anker" },
-  { id: 4, name: "Logitech" },
-  { id: 5, name: "Belkin" },
-];
 
 const ProductForm = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id?: string }>();
   const isEditing = Boolean(id);
+  const api = useApi();
 
-  const [product, setProduct] = useState<Product>(initialProduct);
+  const [product, setProduct] = useState<ExtendedProduct>(emptyProduct);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [categories, setCategories] = useState<Option[]>([]);
+  const [suppliers, setSuppliers] = useState<Option[]>([]);
+
+  // Check if the endpoint is currently loading
+  const isSubmitting = api.isLoading(
+    `/products/${id ? id + "/" : ""}`,
+    id ? "PATCH" : "POST"
+  );
+  const isLoading = api.isLoading(`/products/${id}/`, "GET");
+  const isDeleting = api.isLoading(`/products/${id}/`, "DELETE");
+  const isFetchingCategories = api.isLoading("/categories/", "GET");
+  const isFetchingSuppliers = api.isLoading("/suppliers/", "GET");
+
+  // Fetch categories and suppliers
+  useEffect(() => {
+    fetchCategories();
+    fetchSuppliers();
+  }, []);
+
+  // Fetch product details if editing
+  useEffect(() => {
+    if (isEditing && id) {
+      fetchProductDetails(id);
+    }
+  }, [id]);
+
+  const fetchCategories = async () => {
+    try {
+      const data = await api.get<Option[]>("/categories/");
+      setCategories(data);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      toast.error("Failed to load categories");
+    }
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const data = await api.get<Option[]>("/suppliers/");
+      setSuppliers(data);
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+      toast.error("Failed to load suppliers");
+    }
+  };
+
+  const fetchProductDetails = async (productId: string) => {
+    try {
+      const data = await api.get<Product>(`/products/${productId}/`);
+      // Convert to ExtendedProduct with imagePreview
+      const extendedData: ExtendedProduct = {
+        ...data,
+        imagePreview: data.image,
+      };
+      setProduct(extendedData);
+    } catch (error) {
+      console.error("Error fetching product:", error);
+      // Error handling is managed by ApiContext
+    }
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
@@ -103,18 +145,34 @@ const ProductForm = () => {
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    const numValue = value === "" ? "" : Number(value);
+    const numValue = value === "" ? 0 : Number(value);
     setProduct({ ...product, [name]: numValue });
     if (errors[name]) setErrors({ ...errors, [name]: "" });
   };
 
-  const handleSelectChange = (name: keyof Product, value: string) => {
+  const handleSelectChange = (name: keyof ExtendedProduct, value: string) => {
     setProduct({ ...product, [name]: Number(value) });
     if (errors[name]) setErrors({ ...errors, [name]: "" });
   };
 
-  const handleSwitchChange = (name: keyof Product, checked: boolean) => {
+  const handleSwitchChange = (
+    name: keyof ExtendedProduct,
+    checked: boolean
+  ) => {
     setProduct({ ...product, [name]: checked });
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      // Create a temporary URL for preview
+      const imageUrl = URL.createObjectURL(file);
+      setProduct({
+        ...product,
+        imagePreview: imageUrl,
+      });
+    }
   };
 
   const validateForm = () => {
@@ -124,37 +182,97 @@ const ProductForm = () => {
     if (!product.sku) newErrors.sku = "SKU is required";
     if (!product.category) newErrors.category = "Category is required";
     if (!product.supplier) newErrors.supplier = "Supplier is required";
-    if (product.cost_price === "" || isNaN(Number(product.cost_price)))
+    if (product.cost_price === 0 || isNaN(Number(product.cost_price)))
       newErrors.cost_price = "Valid cost price is required";
-    if (product.selling_price === "" || isNaN(Number(product.selling_price)))
+    if (product.selling_price === 0 || isNaN(Number(product.selling_price)))
       newErrors.selling_price = "Valid selling price is required";
     else if (Number(product.selling_price) < Number(product.cost_price))
       newErrors.selling_price = "Selling price cannot be lower than cost price";
-    if (product.reorder_point === "" || isNaN(Number(product.reorder_point)))
-      newErrors.reorder_point = "Valid reorder point is required";
+    if (product.reorder_level === 0 || isNaN(Number(product.reorder_level)))
+      newErrors.reorder_level = "Valid reorder point is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    setIsSubmitting(true);
-    console.log("Submitting product:", product);
+    try {
+      // Prepare form data for API submission
+      const formData = new FormData();
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      navigate(isEditing ? `/products/${id}` : "/products");
-    }, 1000);
+      // Only include the fields the API expects
+      const fieldsToInclude = [
+        "name",
+        "sku",
+        "description",
+        "category",
+        "supplier",
+        "cost_price",
+        "selling_price",
+        "reorder_level",
+        "is_active",
+      ];
+
+      // Add fields to formData
+      fieldsToInclude.forEach((key) => {
+        if (key in product && product[key as keyof ExtendedProduct] !== null) {
+          formData.append(
+            key,
+            product[key as keyof ExtendedProduct]?.toString() || ""
+          );
+        }
+      });
+
+      // Handle image separately
+      if (imageFile) {
+        formData.append("image", imageFile);
+      }
+
+      // Use ApiContext to make request
+      if (isEditing && id) {
+        await api.patch(`/products/${id}/`, formData);
+        toast.success("Product updated successfully!");
+      } else {
+        await api.post("/products/", formData);
+        toast.success("Product created successfully!");
+      }
+
+      navigate("/products");
+    } catch (error) {
+      console.error("Error saving product:", error);
+      // Error handling is managed by ApiContext
+    }
   };
 
-  const confirmDelete = () => {
-    console.log(`Deleting product with ID: ${id}`);
-    setShowDeleteDialog(false);
-    navigate("/products");
+  const confirmDelete = async () => {
+    if (!id) return;
+
+    try {
+      await api.delete(`/products/${id}/`);
+      toast.success("Product deleted successfully!");
+      setShowDeleteDialog(false);
+      navigate("/products");
+    } catch (error) {
+      console.error("Error deleting product:", error);
+      // Error handling is managed by ApiContext
+      setShowDeleteDialog(false);
+    }
   };
+
+  if (isLoading || isFetchingCategories || isFetchingSuppliers) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <h2 className="text-lg font-medium">Loading data...</h2>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -172,9 +290,10 @@ const ProductForm = () => {
             <Button
               variant="destructive"
               onClick={() => setShowDeleteDialog(true)}
+              disabled={isDeleting}
             >
               <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           )}
         </div>
@@ -234,15 +353,62 @@ const ProductForm = () => {
                   <div className="border border-dashed rounded-md p-4 flex flex-col items-center justify-center">
                     {product.image ? (
                       <div className="relative w-full max-w-md aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-                        <Package className="h-24 w-24 text-gray-400" />
+                        <img
+                          src={product.image}
+                          alt="Product"
+                          className="max-h-full max-w-full object-contain"
+                        />
                         <Button
                           variant="destructive"
                           size="icon"
                           className="absolute top-2 right-2"
                           type="button"
-                          onClick={() =>
-                            setProduct({ ...product, image: null })
-                          }
+                          onClick={() => {
+                            setProduct({
+                              ...product,
+                              image: null,
+                              imagePreview: null,
+                            });
+                            setImageFile(null);
+                            // Revoke the object URL to avoid memory leaks
+                            if (
+                              product.imagePreview &&
+                              product.imagePreview.startsWith("blob:")
+                            ) {
+                              URL.revokeObjectURL(product.imagePreview);
+                            }
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : product.imagePreview ? (
+                      <div className="relative w-full max-w-md aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
+                        <img
+                          src={product.imagePreview}
+                          alt="Product"
+                          className="max-h-full max-w-full object-contain"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2"
+                          type="button"
+                          onClick={() => {
+                            setProduct({
+                              ...product,
+                              image: null,
+                              imagePreview: null,
+                            });
+                            setImageFile(null);
+                            // Revoke the object URL to avoid memory leaks
+                            if (
+                              product.imagePreview &&
+                              product.imagePreview.startsWith("blob:")
+                            ) {
+                              URL.revokeObjectURL(product.imagePreview);
+                            }
+                          }}
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -250,9 +416,18 @@ const ProductForm = () => {
                     ) : (
                       <div className="w-full flex flex-col items-center justify-center space-y-2">
                         <Upload className="h-10 w-10 text-gray-400" />
-                        <Button variant="outline" type="button">
-                          Upload Image
-                        </Button>
+                        <label htmlFor="image-upload">
+                          <Button variant="outline" type="button" asChild>
+                            <span>Upload Image</span>
+                          </Button>
+                          <input
+                            id="image-upload"
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={handleImageChange}
+                          />
+                        </label>
                         <p className="text-xs text-gray-500">
                           PNG, JPG or WEBP up to 2MB
                         </p>
@@ -381,19 +556,19 @@ const ProductForm = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="reorder_point">Reorder Point</Label>
+                  <Label htmlFor="reorder_level">Reorder Point</Label>
                   <Input
-                    id="reorder_point"
-                    name="reorder_point"
+                    id="reorder_level"
+                    name="reorder_level"
                     type="number"
                     min="0"
-                    value={product.reorder_point}
+                    value={product.reorder_level}
                     onChange={handleNumberChange}
                     placeholder="0"
                   />
-                  {errors.reorder_point && (
+                  {errors.reorder_level && (
                     <span className="text-sm text-red-500">
-                      {errors.reorder_point}
+                      {errors.reorder_level}
                     </span>
                   )}
                 </div>
@@ -450,11 +625,16 @@ const ProductForm = () => {
             <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
             >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>

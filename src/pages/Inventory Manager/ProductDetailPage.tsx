@@ -1,6 +1,4 @@
-// src/pages/products/ProductDetailPage.tsx
-
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,7 +14,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -41,134 +38,69 @@ import {
 } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
-
-type StockEntry = {
-  id: number;
-  date: string;
-  quantity: number;
-  type: "Purchase" | "Sale";
-  supplier?: string;
-  user: string;
-};
-
-type SaleEntry = {
-  id: string;
-  date: string;
-  quantity: number;
-  amount: number;
-  customer: string;
-};
-
-type Product = {
-  id: number;
-  name: string;
-  sku: string;
-  description: string;
-  image: string;
-  category: number;
-  category_name: string;
-  supplier: number;
-  supplier_name: string;
-  stock: number;
-  cost_price: number;
-  selling_price: number;
-  profit_margin: string;
-  stock_value: number;
-  needs_reorder: boolean;
-  reorder_point: number;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-// Dummy product data
-const product: Product = {
-  id: 3,
-  name: "USB-C Cable",
-  sku: "USB-C-01",
-  description:
-    "Premium USB-C Cable with fast charging capability and data transfer speeds up to 10 Gbps.",
-  image: "https://placeholder.com/300",
-  category: 2,
-  category_name: "Accessories",
-  supplier: 3,
-  supplier_name: "Anker",
-  stock: 4,
-  cost_price: 5.0,
-  selling_price: 12.5,
-  profit_margin: "150%",
-  stock_value: 20.0,
-  needs_reorder: true,
-  reorder_point: 10,
-  is_active: true,
-  created_at: "2024-12-10T15:30:00Z",
-  updated_at: "2025-04-10T09:15:00Z",
-};
-
-// Dummy history data
-const stockHistory: StockEntry[] = [
-  {
-    id: 1,
-    date: "2025-04-10",
-    quantity: 20,
-    type: "Purchase",
-    supplier: "Anker",
-    user: "John Doe",
-  },
-  {
-    id: 2,
-    date: "2025-04-12",
-    quantity: -5,
-    type: "Sale",
-    user: "Sarah Smith",
-  },
-  {
-    id: 3,
-    date: "2025-04-15",
-    quantity: -11,
-    type: "Sale",
-    user: "Mike Johnson",
-  },
-];
-
-const salesHistory: SaleEntry[] = [
-  {
-    id: "S001",
-    date: "2025-04-15",
-    quantity: 3,
-    amount: 37.5,
-    customer: "Walk-in Customer",
-  },
-  {
-    id: "S002",
-    date: "2025-04-14",
-    quantity: 5,
-    amount: 62.5,
-    customer: "Tech Solutions Inc.",
-  },
-  {
-    id: "S003",
-    date: "2025-04-12",
-    quantity: 3,
-    amount: 37.5,
-    customer: "Jane Smith",
-  },
-];
+import { useApi } from "@/contexts/ApiContext";
+import { Product, SaleItem, StockEntry } from "@/types";
+import { toast } from "sonner";
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [salesHistory, setSalesHistory] = useState<SaleItem[]>([]);
+  const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
+  const { get, delete: remove } = useApi();
+
+  const fetchProduct = async () => {
+    try {
+      const response = await get<Product>(`/products/${id}/`);
+      setProduct(response);
+    } catch (error) {
+      console.error("Failed to fetch product:", error);
+    }
+  };
+
+  const fetchSalesHistory = async () => {
+    try {
+      const response = await get<SaleItem[]>(`/products/${id}/sales_history/`);
+      setSalesHistory(response);
+    } catch (error) {
+      console.log("Failed to fetch Sales History:", error);
+    }
+  };
+
+  const fetchStockHistory = async () => {
+    try {
+      const response = await get<StockEntry[]>(
+        `/products/${id}/stock_history/`
+      );
+      setStockEntries(response);
+    } catch (error) {
+      console.log("Failed to fetch Stock History:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchProduct();
+    fetchSalesHistory();
+    fetchStockHistory();
+  }, [id]);
 
   const handleEdit = () => {
-    navigate(`/products/edit/NPR{id}`);
+    navigate(`/products/edit/${id}`);
   };
 
-  const confirmDelete = () => {
-    console.log(`Deleting product with ID: NPR{id}`);
-    setShowDeleteDialog(false);
-    navigate("/products");
+  const confirmDelete = async () => {
+    if (id) {
+      await remove<Product>(`/products/${id}/`);
+      toast.success(`Deleted product with ID: ${id}`);
+      setShowDeleteDialog(false);
+      // Refresh the products list after deletion
+      navigate("/products");
+    }
   };
+
+  if (!product) return <div>Loading...</div>;
 
   return (
     <DashboardLayout>
@@ -207,15 +139,22 @@ const ProductDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Product Image & Info */}
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <Card className="md:col-span-1">
             <CardHeader>
               <CardTitle>Product Image</CardTitle>
             </CardHeader>
             <CardContent className="flex justify-center">
-              <div className="w-full max-w-md aspect-square bg-gray-100 rounded-lg flex items-center justify-center">
-                <Package className="h-24 w-24 text-gray-400" />
+              <div className="w-full max-w-md aspect-square bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                {product.image ? (
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="object-contain w-full h-full"
+                  />
+                ) : (
+                  <Package className="h-24 w-24 text-gray-400" />
+                )}
               </div>
             </CardContent>
             <CardFooter className="flex flex-col items-start gap-2">
@@ -232,7 +171,6 @@ const ProductDetailPage: React.FC = () => {
             </CardFooter>
           </Card>
 
-          {/* Stats & Details */}
           <Card className="md:col-span-2">
             <CardHeader>
               <CardTitle>Product Details</CardTitle>
@@ -246,7 +184,7 @@ const ProductDetailPage: React.FC = () => {
                   </AlertTitle>
                   <AlertDescription>
                     This product is below the reorder point (
-                    {product.reorder_point}). Current stock: {product.stock}.
+                    {product.reorder_level}). Current stock: {product.stock}.
                   </AlertDescription>
                 </Alert>
               )}
@@ -261,20 +199,22 @@ const ProductDetailPage: React.FC = () => {
                       <DollarSign className="h-4 w-4 mr-2" /> Cost Price
                     </div>
                     <div className="font-medium">
-                      NPR{product.cost_price.toFixed(2)}
+                      NPR{Number(product.cost_price).toFixed(2)}
                     </div>
 
                     <div className="flex items-center">
                       <Tag className="h-4 w-4 mr-2" /> Selling Price
                     </div>
                     <div className="font-medium">
-                      NPR{product.selling_price.toFixed(2)}
+                      NPR{Number(product.selling_price).toFixed(2)}
                     </div>
 
                     <div className="flex items-center">
                       <BarChart className="h-4 w-4 mr-2" /> Profit Margin
                     </div>
-                    <div className="font-medium">{product.profit_margin}</div>
+                    <div className="font-medium">
+                      {product.profit_margin?.toFixed(2)}%
+                    </div>
                   </div>
                 </div>
 
@@ -291,13 +231,13 @@ const ProductDetailPage: React.FC = () => {
                     <div className="flex items-center">
                       <Activity className="h-4 w-4 mr-2" /> Reorder Point
                     </div>
-                    <div className="font-medium">{product.reorder_point}</div>
+                    <div className="font-medium">{product.reorder_level}</div>
 
                     <div className="flex items-center">
                       <DollarSign className="h-4 w-4 mr-2" /> Stock Value
                     </div>
                     <div className="font-medium">
-                      NPR{product.stock_value.toFixed(2)}
+                      NPR{product.stock_value?.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -313,7 +253,6 @@ const ProductDetailPage: React.FC = () => {
           </Card>
         </div>
 
-        {/* Tabs */}
         <Tabs defaultValue="stockHistory" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="stockHistory">Stock History</TabsTrigger>
@@ -323,9 +262,6 @@ const ProductDetailPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Stock Movement History</CardTitle>
-                <CardDescription>
-                  Complete history of stock movements
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -334,45 +270,63 @@ const ProductDetailPage: React.FC = () => {
                       <TableHead>Date</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Quantity</TableHead>
-                      <TableHead>Supplier</TableHead>
-                      <TableHead>User</TableHead>
+                      <TableHead>Unit Price</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead>Added By</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {stockHistory.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{entry.date}</TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              entry.type === "Purchase"
-                                ? "outline"
-                                : "secondary"
-                            }
+                    {stockEntries.length > 0 ? (
+                      stockEntries.map((entry) => (
+                        <TableRow key={entry.id}>
+                          <TableCell>
+                            {new Date(entry.date_added).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={
+                                entry.entry_type === "purchase"
+                                  ? "outline"
+                                  : "secondary"
+                              }
+                              className={
+                                entry.entry_type === "purchase"
+                                  ? "bg-green-100 text-green-800"
+                                  : entry.entry_type === "sale"
+                                  ? "bg-blue-100 text-blue-800"
+                                  : "bg-orange-100 text-orange-800"
+                              }
+                            >
+                              {entry.entry_type_display}
+                            </Badge>
+                          </TableCell>
+                          <TableCell
                             className={
-                              entry.type === "Purchase"
-                                ? "bg-green-100 text-green-800"
-                                : "bg-blue-100 text-blue-800"
+                              entry.quantity < 0
+                                ? "text-red-600"
+                                : "text-green-600"
                             }
                           >
-                            {entry.type}
-                          </Badge>
+                            {entry.quantity > 0
+                              ? `+${entry.quantity}`
+                              : entry.quantity}
+                          </TableCell>
+                          <TableCell>
+                            {entry.unit_price
+                              ? `NPR${entry.unit_price.toFixed(2)}`
+                              : "-"}
+                          </TableCell>
+                          <TableCell>{entry.notes || "-"}</TableCell>
+                          <TableCell>{entry.created_by}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-4">
+                          No stock movement history available
                         </TableCell>
-                        <TableCell
-                          className={
-                            entry.quantity < 0
-                              ? "text-red-600"
-                              : "text-green-600"
-                          }
-                        >
-                          {entry.quantity > 0
-                            ? `+NPR{entry.quantity}`
-                            : entry.quantity}
-                        </TableCell>
-                        <TableCell>{entry.supplier || "-"}</TableCell>
-                        <TableCell>{entry.user}</TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -382,9 +336,6 @@ const ProductDetailPage: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Sales History</CardTitle>
-                <CardDescription>
-                  Record of all sales transactions
-                </CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -398,15 +349,25 @@ const ProductDetailPage: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {salesHistory.map((sale) => (
-                      <TableRow key={sale.id}>
-                        <TableCell>{sale.id}</TableCell>
-                        <TableCell>{sale.date}</TableCell>
-                        <TableCell>{sale.customer}</TableCell>
-                        <TableCell>{sale.quantity}</TableCell>
-                        <TableCell>NPR{sale.amount.toFixed(2)}</TableCell>
+                    {salesHistory.length > 0 ? (
+                      salesHistory.map((sale) => (
+                        <TableRow key={sale.id}>
+                          <TableCell>{sale.id}</TableCell>
+                          <TableCell>
+                            {new Date(sale.sale_date).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>{sale.customer_name || "-"}</TableCell>
+                          <TableCell>{sale.quantity}</TableCell>
+                          <TableCell>NPR{sale.subtotal}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">
+                          No sales history available
+                        </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -415,7 +376,6 @@ const ProductDetailPage: React.FC = () => {
         </Tabs>
       </div>
 
-      {/* Delete Dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>

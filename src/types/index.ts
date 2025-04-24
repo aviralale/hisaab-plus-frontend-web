@@ -49,21 +49,11 @@ export interface Product {
   reorder_level: number;
   cost_price: number;
   selling_price: number;
-  profit_margin: number;
-  stock_value: number;
-  needs_reorder: boolean;
+  profit_margin?: number;
+  stock_value?: number;
+  needs_reorder?: boolean;
   is_active: boolean;
-}
-
-export interface StockEntry {
-  id: number;
-  product: number;
-  product_name: string;
-  quantity: number;
-  unit_cost: number;
-  date_added: string;
-  created_by: number;
-  notes?: string;
+  created_at: string;
 }
 
 export interface SaleItem {
@@ -73,6 +63,19 @@ export interface SaleItem {
   quantity: number;
   unit_price: number;
   subtotal: number;
+  customer_name: string;
+  sale_date: string;
+}
+
+export interface StockEntry {
+  id: number;
+  date_added: string;
+  entry_type: string;
+  entry_type_display: string;
+  quantity: number;
+  unit_price: number;
+  notes: string | null;
+  created_by: string;
 }
 
 export interface Sale {
@@ -168,6 +171,6 @@ export interface DashboardTypes {
   inventory_value: number;
   recent_sales: RecentSale[];
   monthly_sales_data: MonthlySaleData[];
-  percentage_change_from_yesterday: number;
-  percentage_change_from_30_days_ago: number;
+  percentage_increase_from_yesterday: number;
+  percentage_increase_from_30_days_ago: number;
 }

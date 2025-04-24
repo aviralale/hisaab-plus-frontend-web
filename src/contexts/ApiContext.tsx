@@ -41,14 +41,23 @@ export const ApiProvider = ({ children }: ApiProviderProps) => {
     options: AxiosRequestConfig = {}
   ): Promise<T> => {
     const requestKey = `${options.method || "GET"}_${endpoint}`;
-
     setLoading((prev) => ({ ...prev, [requestKey]: true }));
 
     try {
+      // Create a config object
       const config: AxiosRequestConfig = {
         ...options,
         url: endpoint,
       };
+
+      // Special handling for FormData
+      if (options.data instanceof FormData) {
+        // Don't set content-type for FormData - browser will set it with boundary
+        config.headers = {
+          ...config.headers,
+          "Content-Type": undefined,
+        };
+      }
 
       const response = await axiosInstance(config);
       return response.data;
@@ -75,6 +84,9 @@ export const ApiProvider = ({ children }: ApiProviderProps) => {
           error.response?.data?.message ||
           "An error occurred";
         toast.error(errorMessage);
+
+        // For debugging - show the full error response in console
+        console.error("API Error Response:", error.response.data);
       } else if (error.request) {
         // The request was made but no response was received
         toast.error(

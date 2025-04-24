@@ -41,6 +41,7 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { useApi } from "@/contexts/ApiContext";
 import { Product } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const ProductsPage = () => {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ const ProductsPage = () => {
     setSearchTerm(e.target.value);
   };
 
-  const { get } = useApi();
+  const { get, delete: remove } = useApi();
   const { isAuthenticated } = useAuth();
 
   const fetchProducts = async () => {
@@ -81,9 +82,14 @@ const ProductsPage = () => {
     setShowDeleteDialog(true);
   };
 
-  const confirmDelete = () => {
-    console.log(`Deleting product with ID: ${selectedProduct}`);
-    setShowDeleteDialog(false);
+  const confirmDelete = async () => {
+    if (selectedProduct) {
+      await remove<Product>(`/products/${selectedProduct}/`);
+      toast.success(`Deleted product with ID: ${selectedProduct}`);
+      setShowDeleteDialog(false);
+      // Refresh the products list after deletion
+      fetchProducts();
+    }
   };
 
   return (
