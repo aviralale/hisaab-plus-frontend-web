@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Home, RefreshCw, Smile } from "lucide-react";
+import { ArrowLeft, Home, Smile } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import Loader from "@/components/loader";
 
 export default function NotFoundPage() {
   const [quote, setQuote] = useState("");
@@ -48,14 +49,10 @@ export default function NotFoundPage() {
             The page you're looking for doesn't exist or has been moved.
           </p>
         </div>
-
-        {/* Inspirational quote card */}
         <Card className="bg-primary/5 border-primary/20 shadow-md overflow-hidden">
           <CardContent className="pt-8 pb-8 relative">
             {isLoading ? (
-              <div className="flex justify-center">
-                <RefreshCw className="w-6 h-6 animate-spin text-primary" />
-              </div>
+              <Loader />
             ) : (
               <blockquote className="italic text-xl relative">
                 <span className="absolute -left-2 -top-4 text-4xl text-primary/30">

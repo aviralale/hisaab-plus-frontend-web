@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { Product } from "@/types";
+import Loader from "@/components/loader";
 
 type Option = {
   id: number;
@@ -263,15 +264,7 @@ const ProductForm = () => {
   };
 
   if (isLoading || isFetchingCategories || isFetchingSuppliers) {
-    return (
-      <DashboardLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <h2 className="text-lg font-medium">Loading data...</h2>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
+    return <Loader />;
   }
 
   return (

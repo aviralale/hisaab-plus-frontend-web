@@ -32,6 +32,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import Loader from "@/components/loader";
 
 // Interfaces from the provided types
 export interface Business {
@@ -157,7 +158,7 @@ export default function NewSalePage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [recentSales, setRecentSales] = useState<Sale[]>([]);
+  // const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [recentCustomers, setRecentCustomers] = useState<
     { name: string; phone: string; email: string }[]
   >([]);
@@ -177,7 +178,7 @@ export default function NewSalePage() {
       await Promise.all([
         fetchProducts(),
         fetchCategories(),
-        fetchRecentSales(),
+        // fetchRecentSales(),
         fetchRecentCustomers(),
       ]);
     } catch (error) {
@@ -212,17 +213,17 @@ export default function NewSalePage() {
     }
   };
 
-  const fetchRecentSales = async () => {
-    try {
-      // Replace with your API call
-      const response = await fetch("/api/sales/?limit=5");
-      const data = await response.json();
-      setRecentSales(data.results || []);
-    } catch (error) {
-      console.error("Error fetching recent sales:", error);
-      throw error;
-    }
-  };
+  // const fetchRecentSales = async () => {
+  //   try {
+  //     // Replace with your API call
+  //     // const response = await fetch("/api/sales/?limit=5");
+  //     // const data = await response.json();
+  //     // setRecentSales(data.results || []);
+  //   } catch (error) {
+  //     console.error("Error fetching recent sales:", error);
+  //     throw error;
+  //   }
+  // };
 
   const fetchRecentCustomers = async () => {
     try {
@@ -544,13 +545,7 @@ export default function NewSalePage() {
   };
 
   if (loading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="flex justify-center items-center h-64">
-          <p>Loading sale information...</p>
-        </div>
-      </div>
-    );
+    return <Loader />;
   }
 
   // Invoice Preview Mode

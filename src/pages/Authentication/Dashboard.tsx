@@ -35,6 +35,7 @@ import { useApi } from "@/contexts/ApiContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { DashboardTypes } from "@/types";
+import Loader from "@/components/loader";
 
 interface PercentageChangeIndicatorProps {
   change: number;
@@ -45,11 +46,9 @@ const PercentageChangeIndicator = ({
   change,
   timeframe,
 }: PercentageChangeIndicatorProps) => {
-  // Determine if change is positive, negative, or zero
   const isPositive = change > 0;
   const isNegative = change < 0;
 
-  // Absolute value for display
   const displayValue = Math.abs(change);
 
   return (
@@ -95,13 +94,7 @@ const Dashboard = () => {
   };
 
   if (!dashboardData) {
-    return (
-      <DashboardLayout>
-        <div className="flex justify-center items-center h-96">
-          <p className="text-muted-foreground">Loading dashboard...</p>
-        </div>
-      </DashboardLayout>
-    );
+    return <Loader />;
   }
 
   return (

@@ -8,17 +8,8 @@ import {
 } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { LoginUser } from "@/types";
+import { LoginUser, User } from "@/types";
 import { loginUser, axiosInstance } from "@/services/api";
-
-interface User {
-  id: number;
-  email: string;
-  first_name?: string;
-  last_name?: string;
-  username?: string;
-  // Add other user properties as needed
-}
 
 interface AuthContextType {
   user: User | null;

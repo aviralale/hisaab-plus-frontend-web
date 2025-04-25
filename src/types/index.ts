@@ -13,6 +13,7 @@ export interface User {
   phone: string;
   business: number | null;
   business_details?: Business;
+  profile_picture: string;
   role: string;
   role_display: string;
   is_active: boolean;
@@ -61,11 +62,38 @@ export interface SaleItem {
   product: number;
   product_name: string;
   quantity: number;
-  unit_price: number;
+  unit_price: string;
   subtotal: number;
-  customer_name: string;
   sale_date: string;
+  customer_name: string;
 }
+
+export interface Sale {
+  id: number;
+  items: SaleItem[];
+  balance: number;
+  invoice_number: string;
+  customer_name: string;
+  customer_email?: string;
+  customer_phone?: string;
+  sale_date: string;
+  total_amount: string;
+  paid_amount: string;
+  notes: string;
+  created_at: string;
+  business: number;
+  business_details: {
+    id: number;
+    name: string;
+    address: string;
+    email: string;
+    phone: string;
+  };
+  payment_method: string;
+  created_by: number;
+}
+
+export type SalesData = Sale[];
 
 export interface StockEntry {
   id: number;
@@ -76,23 +104,6 @@ export interface StockEntry {
   unit_price: number;
   notes: string | null;
   created_by: string;
-}
-
-export interface Sale {
-  id: number;
-  customer_name: string;
-  customer_phone: string;
-  customer_email?: string;
-  sale_date: string;
-  total_amount: number;
-  amount_paid: number;
-  invoice_number: string;
-  payment_status: string;
-  balance: number;
-  payment_method: string;
-  created_by: number;
-  items: SaleItem[];
-  note?: string;
 }
 
 export interface RegisterUser {

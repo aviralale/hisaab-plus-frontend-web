@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import { dummyCategories } from "@/lib/dummy-data";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import Loader from "@/components/loader";
 
 interface Category {
   id: number;
@@ -171,9 +172,7 @@ export default function CategoriesPage() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center h-64">
-            <p>Loading categories...</p>
-          </div>
+          <Loader />
         ) : (
           <div className="border rounded-md">
             <Table>

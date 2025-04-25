@@ -14,37 +14,26 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { dummySales } from "@/lib/dummy-data";
 import { toast } from "sonner";
+import { useApi } from "@/contexts/ApiContext";
 import { Sale } from "@/types";
 
 function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState<boolean>(true);
+  const [searchTerm, setSearchTerm] = useState<string>("");
   const navigate = useNavigate();
+  const { get } = useApi();
 
   useEffect(() => {
     fetchSales();
   }, []);
 
-  const fetchSales = async () => {
+  const fetchSales = async (): Promise<void> => {
     try {
       setLoading(true);
-      // Convert the dummy data to match the expected format
-      const formattedSales = dummySales.map((sale) => ({
-        ...sale,
-        invoice_number: `INV-${sale.id.toString().padStart(4, "0")}`,
-        date: sale.sale_date,
-        payment_status:
-          sale.balance === 0
-            ? "paid"
-            : sale.amount_paid > 0
-            ? "partial"
-            : "unpaid",
-        notes: "",
-      }));
-      setSales(formattedSales as any);
+      const response: Sale[] = await get("/sales/");
+      setSales(response);
     } catch (error) {
       console.error("Error fetching sales:", error);
       toast.error("Failed to load sales. Please try again.");
@@ -59,7 +48,7 @@ function SalesPage() {
       sale.customer_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string): string => {
     try {
       return format(new Date(dateString), "PPP");
     } catch (error) {
@@ -67,15 +56,20 @@ function SalesPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "NPR",
     }).format(amount);
   };
 
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
+  const getPaymentStatusBadge = (paidAmount: string, totalAmount: string) => {
+    // Calculate payment status based on paid amount and total amount
+    const paid = parseFloat(paidAmount);
+    const total = parseFloat(totalAmount);
+    const status = paid === 0 ? "unpaid" : paid < total ? "partial" : "paid";
+
+    switch (status) {
       case "paid":
         return <Badge className="bg-green-500">Paid</Badge>;
       case "partial":
@@ -88,11 +82,23 @@ function SalesPage() {
   };
 
   // Summary statistics
-  const totalSales = sales.reduce((sum, sale) => sum + sale.total_amount, 0);
-  const totalReceived = sales.reduce((sum, sale) => sum + sale.amount_paid, 0);
-  const totalOutstanding = sales.reduce((sum, sale) => sum + sale.balance, 0);
+  const totalSales = sales.reduce(
+    (sum, sale) => sum + parseFloat(sale.total_amount),
+    0
+  );
+
+  const totalReceived = sales.reduce(
+    (sum, sale) => sum + parseFloat(sale.paid_amount),
+    0
+  );
+
+  const totalOutstanding = sales.reduce(
+    (sum, sale) => sum + (sale.balance || 0),
+    0
+  );
+
   const paidCount = sales.filter(
-    (sale) => sale.payment_status.toLowerCase() === "paid"
+    (sale) => parseFloat(sale.paid_amount) === parseFloat(sale.total_amount)
   ).length;
 
   return (
@@ -159,7 +165,7 @@ function SalesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {sales.length > 0
+              {totalSales > 0
                 ? Math.round((totalReceived / totalSales) * 100)
                 : 0}
               %
@@ -184,9 +190,7 @@ function SalesPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <p>Loading sales...</p>
-        </div>
+        <Loader />
       ) : (
         <div className="border rounded-md">
           <Table>
@@ -222,11 +226,18 @@ function SalesPage() {
                       </div>
                     </TableCell>
                     <TableCell>{sale.customer_name}</TableCell>
-                    <TableCell>{formatCurrency(sale.total_amount)}</TableCell>
-                    <TableCell>{formatCurrency(sale.amount_paid)}</TableCell>
-                    <TableCell>{formatCurrency(sale.balance)}</TableCell>
                     <TableCell>
-                      {getPaymentStatusBadge(sale.payment_status)}
+                      {formatCurrency(parseFloat(sale.total_amount))}
+                    </TableCell>
+                    <TableCell>
+                      {formatCurrency(parseFloat(sale.paid_amount))}
+                    </TableCell>
+                    <TableCell>{formatCurrency(sale.balance || 0)}</TableCell>
+                    <TableCell>
+                      {getPaymentStatusBadge(
+                        sale.paid_amount,
+                        sale.total_amount
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
@@ -249,6 +260,7 @@ function SalesPage() {
 }
 
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import Loader from "@/components/loader";
 
 const SalesPageWithLayout = () => {
   return (

@@ -188,9 +188,7 @@ function SuppliersPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <p>Loading suppliers...</p>
-        </div>
+        <Loader />
       ) : (
         <div className="border rounded-md">
           <Table>
@@ -462,6 +460,7 @@ function SuppliersPage() {
 }
 
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import Loader from "@/components/loader";
 
 const SuppliersPageWithLayout = () => {
   return (

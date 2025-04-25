@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { ModeToggle } from "../mode-toggle";
+import { UserProfileDashboardDropdown } from "../user-profile-dashboard-dropdown";
 
 type DashboardLayoutProps = {
   children: ReactNode;
@@ -74,10 +75,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       </div>
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:block w-64 bg-background border-r px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6">Hisaab Plus</h1>
-        <nav className="space-y-2">{renderNavItems()}</nav>
-        <ModeToggle />
+      <aside className="hidden md:flex w-64 bg-background border-r px-4 py-6 flex-col justify-between">
+        <div>
+          <h1 className="text-2xl font-bold mb-6">Hisaab Plus</h1>
+          <nav className="space-y-2">{renderNavItems()}</nav>
+        </div>
+        <div className="flex flex-col gap-2">
+          <ModeToggle />
+          <UserProfileDashboardDropdown />
+        </div>
       </aside>
 
       {/* Main content */}

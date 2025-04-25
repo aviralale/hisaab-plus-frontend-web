@@ -142,6 +142,7 @@ const ProductsPage = () => {
                   <TableHead>Supplier</TableHead>
                   <TableHead>Stock</TableHead>
                   <TableHead>Price</TableHead>
+                  <TableHead>Profit Margin</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -170,6 +171,18 @@ const ProductsPage = () => {
                       )}
                     </TableCell>
                     <TableCell>NPR{product.selling_price}</TableCell>
+                    <TableCell
+                      className={
+                        product.profit_margin! > 0
+                          ? "text-green-600 font-medium"
+                          : product.profit_margin! < 0
+                          ? "text-red-600 font-medium"
+                          : "text-gray-500"
+                      }
+                    >
+                      {product.profit_margin?.toFixed(2)}%
+                    </TableCell>
+
                     <TableCell>
                       {product.is_active ? (
                         <Badge

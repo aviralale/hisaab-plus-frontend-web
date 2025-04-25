@@ -7,6 +7,7 @@ import {
   User,
   ShoppingBag,
   CreditCard,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -23,18 +24,25 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Sale } from "@/types";
-import { dummySales } from "@/lib/dummy-data";
 import { useReactToPrint } from "react-to-print";
 import React from "react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import Loader from "@/components/loader";
+import { useApi } from "@/contexts/ApiContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface PrintableInvoiceProps {
   sale: Sale;
-  formatCurrency: (amount: number) => string;
+  formatCurrency: (amount: number | string) => string;
   formatDate: (dateString: string) => string;
 }
 
-// Create a separate Invoice component for printing
+// Regular full-page invoice for normal printing
 const PrintableInvoice = React.forwardRef<
   HTMLDivElement,
   PrintableInvoiceProps
@@ -50,10 +58,14 @@ const PrintableInvoice = React.forwardRef<
           <p className="text-gray-500">#{sale.invoice_number}</p>
         </div>
         <div className="text-right">
-          <h2 className="text-2xl font-bold">HisaabPlus</h2>
-          <p className="text-gray-600">Your Business Address</p>
-          <p className="text-gray-600">contact@hisaabplus.com</p>
-          <p className="text-gray-600">+1 (555) 123-4567</p>
+          <h2 className="text-2xl font-bold">{sale.business_details.name}</h2>
+          <p className="text-gray-600">{sale.business_details.address}</p>
+          <p className="text-gray-600">
+            {sale.business_details.email && sale.business_details.email}
+          </p>
+          <p className="text-gray-600">
+            {sale.business_details.phone && sale.business_details.phone}
+          </p>
         </div>
       </div>
 
@@ -62,8 +74,6 @@ const PrintableInvoice = React.forwardRef<
         <div>
           <h3 className="text-lg font-semibold mb-2">Bill To:</h3>
           <p className="font-medium">{sale.customer_name}</p>
-          {sale.customer_phone && <p>{sale.customer_phone}</p>}
-          {sale.customer_email && <p>{sale.customer_email}</p>}
         </div>
         <div className="text-right">
           <div className="mb-2">
@@ -72,21 +82,26 @@ const PrintableInvoice = React.forwardRef<
           </div>
           <div className="mb-2">
             <span className="font-semibold">Payment Method: </span>
-            <span>{sale.payment_method || "Not specified"}</span>
+            <span>
+              {sale.payment_method ? sale.payment_method : "Not specified"}
+            </span>
           </div>
           <div>
             <span className="font-semibold">Payment Status: </span>
             <span
               className={`inline-block px-2 py-1 rounded text-white ${
-                sale.payment_status === "paid"
+                sale.balance === 0
                   ? "bg-green-500"
-                  : sale.payment_status === "partial"
+                  : parseFloat(sale.paid_amount) > 0
                   ? "bg-yellow-500"
                   : "bg-red-500"
               }`}
             >
-              {sale.payment_status.charAt(0).toUpperCase() +
-                sale.payment_status.slice(1)}
+              {sale.balance === 0
+                ? "Paid"
+                : parseFloat(sale.paid_amount) > 0
+                ? "Partial"
+                : "Unpaid"}
             </span>
           </div>
         </div>
@@ -136,7 +151,7 @@ const PrintableInvoice = React.forwardRef<
           </div>
           <div className="flex justify-between py-2">
             <span className="font-medium">Amount Paid:</span>
-            <span>{formatCurrency(sale.amount_paid)}</span>
+            <span>{formatCurrency(sale.paid_amount)}</span>
           </div>
           <div className="flex justify-between py-2 border-t border-gray-300 font-bold">
             <span>Balance Due:</span>
@@ -146,10 +161,10 @@ const PrintableInvoice = React.forwardRef<
       </div>
 
       {/* Notes */}
-      {sale.note && (
+      {sale.notes && (
         <div className="mb-8">
           <h3 className="font-semibold mb-2">Notes:</h3>
-          <p className="text-gray-700 p-3 bg-gray-50 rounded">{sale.note}</p>
+          <p className="text-gray-700 p-3 bg-gray-50 rounded">{sale.notes}</p>
         </div>
       )}
 
@@ -164,15 +179,140 @@ const PrintableInvoice = React.forwardRef<
   );
 });
 
-// Don't forget to add the display name
+// Add display name
 PrintableInvoice.displayName = "PrintableInvoice";
+
+// POS Receipt style printout
+const POSReceipt = React.forwardRef<HTMLDivElement, PrintableInvoiceProps>(
+  ({ sale, formatCurrency, formatDate }, ref) => {
+    if (!sale) return null;
+
+    return (
+      <div
+        ref={ref}
+        className="bg-white p-4"
+        style={{ maxWidth: "80mm", margin: "0 auto", fontFamily: "monospace" }}
+      >
+        {/* Header */}
+        <div className="text-center mb-4">
+          <h1 className="text-xl font-bold">{sale.business_details.name}</h1>
+          <p className="text-sm">{sale.business_details.address}</p>
+          <p className="text-sm">
+            {sale.business_details.email && sale.business_details.email}
+          </p>
+          <p className="text-sm">
+            {sale.business_details.phone && sale.business_details.phone}
+          </p>
+          <div className="border-t border-b border-dashed border-gray-300 my-2 py-1">
+            <p className="font-bold">RECEIPT #{sale.invoice_number}</p>
+            <p className="text-sm">{formatDate(sale.sale_date)}</p>
+          </div>
+        </div>
+
+        {/* Customer */}
+        <div className="mb-4 text-sm">
+          <p>
+            <strong>Customer:</strong> {sale.customer_name}
+          </p>
+        </div>
+
+        {/* Items Table - Simple format for POS */}
+        <div className="mb-4">
+          <div className="border-b border-dashed border-gray-300 pb-1 mb-2">
+            <div className="flex justify-between text-sm font-bold">
+              <div style={{ width: "40%" }}>Item</div>
+              <div style={{ width: "15%" }} className="text-right">
+                Qty
+              </div>
+              <div style={{ width: "20%" }} className="text-right">
+                Price
+              </div>
+              <div style={{ width: "25%" }} className="text-right">
+                Total
+              </div>
+            </div>
+          </div>
+
+          {sale.items.map((item: any, index: number) => (
+            <div key={index} className="flex justify-between text-sm mb-1">
+              <div style={{ width: "40%" }}>{item.product_name}</div>
+              <div style={{ width: "15%" }} className="text-right">
+                {item.quantity}
+              </div>
+              <div style={{ width: "20%" }} className="text-right">
+                {formatCurrency(item.unit_price)}
+              </div>
+              <div style={{ width: "25%" }} className="text-right">
+                {formatCurrency(item.subtotal)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Summary */}
+        <div className="border-t border-dashed border-gray-300 pt-2 mb-4">
+          <div className="flex justify-between text-sm">
+            <span>Subtotal:</span>
+            <span>{formatCurrency(sale.total_amount)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span>Amount Paid:</span>
+            <span>{formatCurrency(sale.paid_amount)}</span>
+          </div>
+          <div className="flex justify-between font-bold text-sm border-t border-dashed border-gray-300 mt-1 pt-1">
+            <span>Balance Due:</span>
+            <span>{formatCurrency(sale.balance)}</span>
+          </div>
+        </div>
+
+        {/* Payment Status */}
+        <div className="text-center mb-4">
+          <div
+            className={`py-1 text-white font-bold ${
+              sale.balance === 0
+                ? "bg-green-500"
+                : parseFloat(sale.paid_amount) > 0
+                ? "bg-yellow-500"
+                : "bg-red-500"
+            }`}
+          >
+            {sale.balance === 0
+              ? "PAID"
+              : parseFloat(sale.paid_amount) > 0
+              ? "PARTIALLY PAID"
+              : "UNPAID"}
+          </div>
+        </div>
+
+        {/* Notes if any */}
+        {sale.notes && (
+          <div className="mb-4 text-sm">
+            <p className="font-bold">Notes:</p>
+            <p>{sale.notes}</p>
+          </div>
+        )}
+
+        {/* Footer */}
+        <div className="text-center text-xs border-t border-dashed border-gray-300 pt-2">
+          <p>Thank you for your business!</p>
+          <p>Please keep this receipt for your records</p>
+        </div>
+      </div>
+    );
+  }
+);
+
+// Add display name
+POSReceipt.displayName = "POSReceipt";
 
 function SaleDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [sale, setSale] = useState<Sale | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const printableRef = useRef<HTMLDivElement>(null);
+  const invoiceRef = useRef<HTMLDivElement>(null);
+  const posReceiptRef = useRef<HTMLDivElement>(null);
+  const api = useApi();
 
   useEffect(() => {
     fetchSaleDetails();
@@ -181,28 +321,11 @@ function SaleDetailPage() {
   const fetchSaleDetails = async () => {
     try {
       setLoading(true);
-      // Simulate API call with dummy data
-      const foundSale = dummySales.find((s) => s.id.toString() === id);
-      if (!foundSale) {
-        throw new Error("Sale not found");
-      }
 
-      // Format the sale to match the expected interface
-      const formattedSale: Sale = {
-        ...foundSale,
-        invoice_number: `INV-${foundSale.id.toString().padStart(4, "0")}`,
-        sale_date: foundSale.sale_date,
-        payment_status:
-          foundSale.balance === 0
-            ? "paid"
-            : foundSale.amount_paid > 0
-            ? "partial"
-            : "unpaid",
-        note: foundSale.note || "",
-        items: foundSale.items,
-      };
-
-      setSale(formattedSale);
+      // Use the API context to fetch the sale data
+      const response = await api.get(`/sales/${id}/`);
+      const saleData = response;
+      setSale(saleData);
     } catch (error) {
       console.error("Error fetching sale details:", error);
       toast.error("Failed to load sale details. Please try again.");
@@ -219,33 +342,31 @@ function SaleDetailPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | string) => {
+    const numericAmount =
+      typeof amount === "string" ? parseFloat(amount) : amount;
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "NPR",
-    }).format(amount);
+    }).format(numericAmount);
   };
 
-  const getPaymentStatusBadge = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "paid":
-        return <Badge className="bg-green-500">Paid</Badge>;
-      case "partial":
-        return <Badge className="bg-yellow-500">Partial</Badge>;
-      case "unpaid":
-        return <Badge className="bg-red-500">Unpaid</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
+  const getPaymentStatusBadge = (sale: Sale) => {
+    if (sale.balance === 0) {
+      return <Badge className="bg-green-500">Paid</Badge>;
+    } else if (parseFloat(sale.paid_amount.toString()) > 0) {
+      return <Badge className="bg-yellow-500">Partial</Badge>;
+    } else {
+      return <Badge className="bg-red-500">Unpaid</Badge>;
     }
   };
 
-  // Use the react-to-print hook to handle printing
-  const handlePrint = useReactToPrint({
-    // Use contentRef instead of content
-    contentRef: printableRef,
+  // Handle full invoice printing
+  const handleInvoicePrint = useReactToPrint({
+    contentRef: invoiceRef,
     documentTitle: `Invoice-${sale?.invoice_number || id}`,
     onBeforePrint: () => {
-      if (!printableRef.current) {
+      if (!invoiceRef.current) {
         toast.error("Print content not ready. Please try again.");
         return Promise.reject("Print content not ready");
       }
@@ -258,14 +379,26 @@ function SaleDetailPage() {
     onAfterPrint: () => toast.success("Invoice sent to printer!"),
   });
 
+  // Handle POS receipt printing
+  const handlePOSPrint = useReactToPrint({
+    contentRef: posReceiptRef,
+    documentTitle: `Receipt-${sale?.invoice_number || id}`,
+    onBeforePrint: () => {
+      if (!posReceiptRef.current) {
+        toast.error("Receipt content not ready. Please try again.");
+        return Promise.reject("Receipt content not ready");
+      }
+      return Promise.resolve();
+    },
+    onPrintError: (error) => {
+      console.error("Print failed:", error);
+      toast.error("Failed to print receipt. Please try again.");
+    },
+    onAfterPrint: () => toast.success("Receipt sent to printer!"),
+  });
+
   if (loading) {
-    return (
-      <div className="container mx-auto py-6">
-        <div className="flex justify-center items-center h-64">
-          <p>Loading sale details...</p>
-        </div>
-      </div>
-    );
+    return <Loader />;
   }
 
   if (!sale) {
@@ -291,13 +424,25 @@ function SaleDetailPage() {
           <ArrowLeft size={16} />
           Back to Sales
         </Button>
-        <Button
-          onClick={() => handlePrint()}
-          className="flex items-center gap-2"
-        >
-          <Printer size={16} />
-          Print Invoice
-        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button className="flex items-center gap-2">
+              <Printer size={16} />
+              Print Options
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleInvoicePrint()}>
+              <Printer size={16} className="mr-2" />
+              Print Full Invoice
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handlePOSPrint()}>
+              <Receipt size={16} className="mr-2" />
+              Print POS Receipt
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Regular card view of the sale */}
@@ -315,9 +460,16 @@ function SaleDetailPage() {
                 </div>
               </div>
               <div className="text-right">
-                <h2 className="text-xl font-bold">HisaabPlus</h2>
-                <p className="text-gray-500">Your Business Address</p>
-                <p className="text-gray-500">contact@hisaabplus.com</p>
+                <h2 className="text-xl font-bold">
+                  {sale.business_details.name}
+                </h2>
+                <p className="text-gray-500">{sale.business_details.address}</p>
+                <p className="text-gray-500">
+                  {sale.business_details.email && sale.business_details.email}
+                </p>
+                <p className="text-gray-500">
+                  {sale.business_details.phone && sale.business_details.phone}
+                </p>
               </div>
             </div>
           </CardHeader>
@@ -329,9 +481,6 @@ function SaleDetailPage() {
                   Customer
                 </h3>
                 <p className="text-lg font-medium">{sale.customer_name}</p>
-                {sale.customer_phone && (
-                  <p className="text-gray-500">{sale.customer_phone}</p>
-                )}
               </div>
               <div className="text-right">
                 <h3 className="font-semibold mb-2 flex items-center justify-end gap-2">
@@ -339,13 +488,12 @@ function SaleDetailPage() {
                   Payment Details
                 </h3>
                 <p className="text-gray-500">
-                  Method: {sale.payment_method || "Not specified"}
+                  Method:{" "}
+                  {sale.payment_method ? sale.payment_method : "Not specified"}
                 </p>
                 <p className="text-gray-500">
                   Status:{" "}
-                  <span className="ml-2">
-                    {getPaymentStatusBadge(sale.payment_status)}
-                  </span>
+                  <span className="ml-2">{getPaymentStatusBadge(sale)}</span>
                 </p>
               </div>
             </div>
@@ -397,7 +545,7 @@ function SaleDetailPage() {
               <div className="flex justify-between w-full md:w-1/3">
                 <p className="text-gray-500">Amount Paid:</p>
                 <p className="font-medium">
-                  {formatCurrency(sale.amount_paid)}
+                  {formatCurrency(sale.paid_amount)}
                 </p>
               </div>
               <div className="flex justify-between w-full md:w-1/3">
@@ -406,12 +554,12 @@ function SaleDetailPage() {
               </div>
             </div>
 
-            {sale.note && (
+            {sale.notes && (
               <>
                 <Separator className="my-6" />
                 <div>
                   <h3 className="font-semibold mb-2">Notes</h3>
-                  <p className="text-gray-500">{sale.note}</p>
+                  <p className="text-gray-500">{sale.notes}</p>
                 </div>
               </>
             )}
@@ -419,10 +567,19 @@ function SaleDetailPage() {
         </Card>
       </div>
 
-      {/* Printable invoice - hidden but rendered in the DOM */}
+      {/* Hidden printable elements */}
       <div className="hidden">
+        {/* Full invoice for printing */}
         <PrintableInvoice
-          ref={printableRef}
+          ref={invoiceRef}
+          sale={sale}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+        />
+
+        {/* POS receipt for printing */}
+        <POSReceipt
+          ref={posReceiptRef}
           sale={sale}
           formatCurrency={formatCurrency}
           formatDate={formatDate}
@@ -431,6 +588,7 @@ function SaleDetailPage() {
     </div>
   );
 }
+
 const SaleDetailPageWithLayout = () => {
   return (
     <DashboardLayout>

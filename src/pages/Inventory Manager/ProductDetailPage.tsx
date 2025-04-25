@@ -41,6 +41,7 @@ import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { useApi } from "@/contexts/ApiContext";
 import { Product, SaleItem, StockEntry } from "@/types";
 import { toast } from "sonner";
+import Loader from "@/components/loader";
 
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -100,7 +101,7 @@ const ProductDetailPage: React.FC = () => {
     }
   };
 
-  if (!product) return <div>Loading...</div>;
+  if (!product) return <Loader />;
 
   return (
     <DashboardLayout>

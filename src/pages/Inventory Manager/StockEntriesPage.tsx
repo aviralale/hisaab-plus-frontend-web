@@ -132,9 +132,7 @@ function StockEntriesPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <p>Loading stock entries...</p>
-        </div>
+        <Loader />
       ) : (
         <div className="border rounded-md">
           <Table>
@@ -276,6 +274,7 @@ function StockEntriesPage() {
 }
 
 import DashboardLayout from "@/components/layouts/DashboardLayout";
+import Loader from "@/components/loader";
 
 const StockEntriesPageWithLayout = () => {
   return (
