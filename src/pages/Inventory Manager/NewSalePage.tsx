@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Plus,
   Minus,
@@ -8,6 +8,7 @@ import {
   ShoppingCart,
   User,
   FileText,
+  Image as ImageIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,101 +34,11 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import Loader from "@/components/loader";
-
-// Interfaces from the provided types
-export interface Business {
-  id: number;
-  name: string;
-  address: string;
-  created_at: string;
-  users_count?: number;
-}
-
-export interface User {
-  id: number;
-  email: string;
-  full_name: string;
-  phone: string;
-  business: number | null;
-  business_details?: Business;
-  role: string;
-  role_display: string;
-  is_active: boolean;
-  date_joined: string;
-  last_login: string;
-}
-
-export interface Category {
-  id: number;
-  name: string;
-  description: string;
-}
-
-export interface Supplier {
-  id: number;
-  name: string;
-  contact_person: string;
-  email: string;
-  phone: string;
-  address: string;
-}
-
-export interface Product {
-  id: number;
-  name: string;
-  sku: string;
-  image: string | null;
-  description: string;
-  category: number;
-  category_name: string;
-  supplier: number;
-  supplier_name: string;
-  stock: number;
-  reorder_level: number;
-  cost_price: number;
-  selling_price: number;
-  profit_margin: number;
-  stock_value: number;
-  needs_reorder: boolean;
-  is_active: boolean;
-}
-
-export interface StockEntry {
-  id: number;
-  product: number;
-  product_name: string;
-  quantity: number;
-  unit_cost: number;
-  date_added: string;
-  created_by: number;
-  notes?: string;
-}
-
-export interface SaleItem {
-  id?: number;
-  product: number;
-  product_name: string;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-}
-
-export interface Sale {
-  id: number;
-  customer_name: string;
-  customer_phone: string;
-  customer_email?: string;
-  sale_date: string;
-  total_amount: number;
-  amount_paid: number;
-  invoice_number: string;
-  payment_status: string;
-  balance: number;
-  payment_method: string;
-  created_by: number;
-  items: SaleItem[];
-  note?: string;
-}
+import { useApi } from "@/contexts/ApiContext";
+import { Product, ProductsResponse, Sale, SaleItem } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { generateInvoiceNumber } from "@/lib/invoice-number";
+import { CustomPagination } from "@/components/custom-pagination";
 
 interface CustomerFormData {
   name: string;
@@ -143,6 +54,8 @@ export default function NewSalePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { get, post } = useApi();
+  const { user } = useAuth();
 
   // Enhanced customer information
   const [customer, setCustomer] = useState<CustomerFormData>({
@@ -156,85 +69,55 @@ export default function NewSalePage() {
   const [notes, setNotes] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("products");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  // const [recentSales, setRecentSales] = useState<Sale[]>([]);
-  const [recentCustomers, setRecentCustomers] = useState<
-    { name: string; phone: string; email: string }[]
-  >([]);
-  const [showRecentCustomers, setShowRecentCustomers] =
-    useState<boolean>(false);
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [discountType, setDiscountType] = useState<string>("amount"); // "amount" or "percentage"
+  const [discountType, setDiscountType] = useState<string>("amount");
   const [invoicePreviewMode, setInvoicePreviewMode] = useState<boolean>(false);
+  const [totalPages, setTotalPages] = useState<number>(0);
+  const [totalItems, setTotalItems] = useState<number>(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const currentPage = Number(searchParams.get("page") || "1");
 
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    fetchProducts(currentPage);
+  }, [currentPage, searchTerm]);
 
-  const fetchInitialData = async () => {
+  const fetchProducts = async (page: number) => {
     try {
       setLoading(true);
-      await Promise.all([
-        fetchProducts(),
-        fetchCategories(),
-        // fetchRecentSales(),
-        fetchRecentCustomers(),
-      ]);
+
+      // Build query parameters for the API call
+      let queryParams = `page=${page}`;
+
+      if (searchTerm) {
+        queryParams += `&search=${encodeURIComponent(searchTerm)}`;
+      }
+
+      const response = await get<ProductsResponse>(`/products/?${queryParams}`);
+
+      // Update products and pagination data
+      setProducts(response.results.filter((p: Product) => p.is_active));
+      setTotalItems(response.count);
+
+      // Calculate total pages (assuming default of 10 items per page)
+      const itemsPerPage = 10;
+      setTotalPages(Math.ceil(response.count / itemsPerPage));
     } catch (error) {
-      console.error("Error fetching initial data:", error);
-      toast.error("Failed to load initial data. Please try again.");
+      console.error("Error fetching products:", error);
+      toast.error("Failed to load products. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchProducts = async () => {
-    try {
-      // Replace with your API call
-      const response = await fetch("/api/products/");
-      const data = await response.json();
-      setProducts(data.filter((p: Product) => p.is_active));
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      throw error;
-    }
+  const handlePageChange = (page: number) => {
+    setSearchParams({ page: page.toString() });
   };
 
-  const fetchCategories = async () => {
-    try {
-      // Replace with your API call
-      const response = await fetch("/api/categories/");
-      const data = await response.json();
-      setCategories(data);
-    } catch (error) {
-      console.error("Error fetching categories:", error);
-      throw error;
-    }
-  };
-
-  // const fetchRecentSales = async () => {
-  //   try {
-  //     // Replace with your API call
-  //     // const response = await fetch("/api/sales/?limit=5");
-  //     // const data = await response.json();
-  //     // setRecentSales(data.results || []);
-  //   } catch (error) {
-  //     console.error("Error fetching recent sales:", error);
-  //     throw error;
-  //   }
-  // };
-
-  const fetchRecentCustomers = async () => {
-    try {
-      // Replace with your API call
-      const response = await fetch("/api/customers/recent/?limit=5");
-      const data = await response.json();
-      setRecentCustomers(data.results || []);
-    } catch (error) {
-      console.error("Error fetching recent customers:", error);
-      // Don't throw, this is secondary data
-    }
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    // Reset to first page when search term changes
+    setSearchParams({ page: "1" });
   };
 
   const handleAddItem = () => {
@@ -251,13 +134,13 @@ export default function NewSalePage() {
       return;
     }
 
-    // Check if product already exists in the list
+    const sellingPrice = product.selling_price;
+
     const existingItemIndex = saleItems.findIndex(
       (item) => item.product === productId
     );
 
     if (existingItemIndex >= 0) {
-      // Update quantity if product already exists
       const updatedItems = [...saleItems];
       const newQuantity = updatedItems[existingItemIndex].quantity + quantity;
 
@@ -268,29 +151,27 @@ export default function NewSalePage() {
         return;
       }
 
+      // Make sure to calculate with numeric values
+      const unitPrice = parseFloat(updatedItems[existingItemIndex].unit_price);
       updatedItems[existingItemIndex].quantity = newQuantity;
-      updatedItems[existingItemIndex].subtotal =
-        newQuantity * updatedItems[existingItemIndex].unit_price;
+      updatedItems[existingItemIndex].subtotal = newQuantity * unitPrice;
 
       setSaleItems(updatedItems);
     } else {
-      // Add new item
-      const newItem: SaleItem = {
+      // Add new item with correct numeric calculations
+      const newItem = {
         product: productId,
         product_name: product.name,
         quantity: quantity,
-        unit_price: product.selling_price,
-        subtotal: quantity * product.selling_price,
+        unit_price: `${sellingPrice}`, // Keep as string for consistency
+        subtotal: quantity * sellingPrice, // Calculate with numeric value
       };
 
       setSaleItems([...saleItems, newItem]);
     }
 
-    // Reset selection
     setSelectedProduct("");
     setQuantity(1);
-
-    // Auto switch to cart tab after adding an item
     setActiveTab("cart");
 
     toast.success(`Added ${quantity} ${product.name} to cart`);
@@ -302,7 +183,9 @@ export default function NewSalePage() {
       return;
     }
 
-    // Check if product already exists in the list
+    // Convert string price to number for calculations
+    const sellingPrice = product.selling_price;
+
     const existingItemIndex = saleItems.findIndex(
       (item) => item.product === product.id
     );
@@ -317,19 +200,19 @@ export default function NewSalePage() {
         return;
       }
 
+      const unitPrice = parseFloat(updatedItems[existingItemIndex].unit_price);
       updatedItems[existingItemIndex].quantity = newQuantity;
-      updatedItems[existingItemIndex].subtotal =
-        newQuantity * updatedItems[existingItemIndex].unit_price;
+      updatedItems[existingItemIndex].subtotal = newQuantity * unitPrice;
 
       setSaleItems(updatedItems);
     } else {
-      // Add new item
-      const newItem: SaleItem = {
+      // Add new item with correct numeric calculations
+      const newItem = {
         product: product.id,
         product_name: product.name,
         quantity: 1,
-        unit_price: product.selling_price,
-        subtotal: product.selling_price,
+        unit_price: `${sellingPrice}`, // Keep as string for consistency
+        subtotal: sellingPrice, // Calculate with numeric value
       };
 
       setSaleItems([...saleItems, newItem]);
@@ -362,31 +245,37 @@ export default function NewSalePage() {
     }
 
     const updatedItems = [...saleItems];
+    const unitPrice = parseFloat(updatedItems[index].unit_price);
     updatedItems[index].quantity = newQuantity;
-    updatedItems[index].subtotal = newQuantity * updatedItems[index].unit_price;
+    updatedItems[index].subtotal = newQuantity * unitPrice;
     setSaleItems(updatedItems);
   };
 
   const calculateSubtotal = () => {
-    return saleItems.reduce((sum, item) => sum + item.subtotal, 0);
+    if (!saleItems || saleItems.length === 0) return 0;
+    return saleItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0);
   };
 
   const calculateDiscount = () => {
-    if (!discountAmount) return 0;
+    if (!discountAmount || isNaN(discountAmount)) return 0;
+    const subtotal = calculateSubtotal();
 
     if (discountType === "percentage") {
-      return (calculateSubtotal() * discountAmount) / 100;
+      return (subtotal * discountAmount) / 100;
     }
 
     return discountAmount;
   };
 
   const calculateTotal = () => {
-    return calculateSubtotal() - calculateDiscount();
+    const subtotal = calculateSubtotal();
+    const discount = calculateDiscount();
+    return subtotal - discount;
   };
 
   const calculateBalance = () => {
-    return calculateTotal() - amountPaid;
+    const total = calculateTotal();
+    return total - (amountPaid || 0);
   };
 
   const getPaymentStatus = () => {
@@ -396,6 +285,7 @@ export default function NewSalePage() {
     if (amountPaid > 0) return "partial";
     return "unpaid";
   };
+
   const getPaymentStatusBadge = (status: string) => {
     switch (status.toLowerCase()) {
       case "paid":
@@ -408,16 +298,7 @@ export default function NewSalePage() {
         return <Badge>{status}</Badge>;
     }
   };
-
-  const selectCustomer = (customerData: {
-    name: string;
-    phone: string;
-    email: string;
-  }) => {
-    setCustomer(customerData);
-    setShowRecentCustomers(false);
-    toast.success(`Selected customer: ${customerData.name}`);
-  };
+  console.log("Business ID", user?.business_details?.id);
 
   const handleCreateSale = async () => {
     if (saleItems.length === 0) {
@@ -429,18 +310,48 @@ export default function NewSalePage() {
       toast.error("Please enter a customer name");
       return;
     }
+    const stockIssues = [];
+
+    for (const item of saleItems) {
+      const product = products.find((p) => p.id === item.product);
+      if (!product) {
+        stockIssues.push(`Product "${item.product_name}" not found`);
+        continue;
+      }
+
+      if (product.stock < item.quantity) {
+        stockIssues.push(
+          `Not enough stock for "${item.product_name}". Available: ${product.stock}, Requested: ${item.quantity}`
+        );
+      }
+    }
+
+    if (stockIssues.length > 0) {
+      toast.error(
+        <div>
+          <p>Cannot create sale due to insufficient stock:</p>
+          <ul className="list-disc pl-4 mt-2">
+            {stockIssues.map((issue, index) => (
+              <li key={index}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      );
+      return;
+    }
 
     try {
       setSubmitting(true);
       // Format sale data according to the Sale interface
       const saleData: Partial<Sale> = {
+        business: user?.business_details?.id,
+        invoice_number: generateInvoiceNumber("sale"),
         customer_name: customer.name,
         customer_phone: customer.phone,
-        customer_email: customer.email || undefined,
+        customer_email: customer.email,
         payment_method: paymentMethod,
-        amount_paid: amountPaid,
+        paid_amount: `${amountPaid || 0}`,
         note: notes,
-        // Include discount information in the notes if applicable
         ...(discountAmount > 0 && {
           note: `${notes ? notes + "\n" : ""}Discount: ${
             discountType === "percentage"
@@ -456,26 +367,9 @@ export default function NewSalePage() {
           subtotal: item.subtotal,
         })),
       };
-
-      // Replace with your API call
-      const response = await fetch("/api/sales/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(saleData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Failed to create sale");
-      }
-
-      const newSale = await response.json();
-
+      const response = await post("/sales/", saleData);
+      const newSale = await response;
       toast.success("Sale has been successfully created");
-
-      // Navigate to the sale detail page
       navigate(`/sales/${newSale.id}`);
     } catch (error) {
       console.error("Error creating sale:", error);
@@ -499,6 +393,8 @@ export default function NewSalePage() {
   };
 
   const formatCurrency = (amount: number) => {
+    if (isNaN(amount)) return "NPR 0.00";
+
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "NPR",
@@ -514,24 +410,13 @@ export default function NewSalePage() {
       filtered = filtered.filter(
         (p) =>
           p.name.toLowerCase().includes(term) ||
-          p.sku.toLowerCase().includes(term)
+          (p.sku && p.sku.toLowerCase().includes(term))
       );
     }
-
-    // Filter by category
-    if (selectedCategory) {
-      filtered = filtered.filter(
-        (p) => p.category === parseInt(selectedCategory)
-      );
-    }
-
-    // Only show products with stock
     filtered = filtered.filter((p) => p.stock > 0 && p.is_active);
 
     return filtered;
   };
-
-  // Generate a draft invoice number for preview
   const getDraftInvoiceNumber = () => {
     const date = new Date();
     const year = date.getFullYear().toString().substr(-2);
@@ -577,10 +462,10 @@ export default function NewSalePage() {
                 </p>
               </div>
               <div className="text-right">
-                <h3 className="font-bold">Your Business Name</h3>
-                <p className="text-gray-500">Address Line 1</p>
-                <p className="text-gray-500">City, State, ZIP</p>
-                <p className="text-gray-500">Phone: (123) 456-7890</p>
+                <h3 className="font-bold">{user?.business_details?.name}</h3>
+                <p className="text-gray-500">
+                  {user?.business_details?.address}
+                </p>
               </div>
             </div>
 
@@ -608,7 +493,7 @@ export default function NewSalePage() {
                       {item.quantity}
                     </TableCell>
                     <TableCell className="text-right">
-                      {formatCurrency(item.unit_price)}
+                      {formatCurrency(parseFloat(item.unit_price))}
                     </TableCell>
                     <TableCell className="text-right">
                       {formatCurrency(item.subtotal)}
@@ -654,7 +539,7 @@ export default function NewSalePage() {
                     Amount Paid:
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(amountPaid)}
+                    {formatCurrency(amountPaid || 0)}
                   </TableCell>
                 </TableRow>
 
@@ -754,36 +639,12 @@ export default function NewSalePage() {
                         id="searchProduct"
                         placeholder="Search by name or SKU"
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => handleSearchChange(e.target.value)}
                       />
-                    </div>
-
-                    <div className="flex-1">
-                      <Label htmlFor="categoryFilter">Filter by Category</Label>
-                      <Select
-                        value={selectedCategory}
-                        onValueChange={setSelectedCategory}
-                      >
-                        <SelectTrigger id="categoryFilter">
-                          <SelectValue placeholder="All Categories" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="">All Categories</SelectItem>
-                          {categories.map((category) => (
-                            <SelectItem
-                              key={category.id}
-                              value={category.id.toString()}
-                            >
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader>
                   <CardTitle>Available Products</CardTitle>
@@ -798,16 +659,30 @@ export default function NewSalePage() {
                       {getFilteredProducts().map((product) => (
                         <Card
                           key={product.id}
-                          className="overflow-hidden hover:bg-gray-50 cursor-pointer"
+                          className="overflow-hidden cursor-pointer hover:shadow-md transition-shadow"
                           onClick={() => handleAddProductDirectly(product)}
                         >
+                          <div className="aspect-square w-full bg-gray-100 flex items-center justify-center">
+                            {product.image ? (
+                              <img
+                                src={product.image}
+                                alt={product.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center text-gray-400">
+                                <ImageIcon size={40} />
+                                <span className="text-xs mt-2">No image</span>
+                              </div>
+                            )}
+                          </div>
                           <CardContent className="p-4">
                             <div className="flex justify-between">
                               <h3 className="font-semibold truncate">
                                 {product.name}
                               </h3>
                               <span className="text-sm text-gray-500">
-                                #{product.sku}
+                                #{product.sku || "N/A"}
                               </span>
                             </div>
                             <div className="mt-2 flex justify-between items-center">
@@ -816,7 +691,7 @@ export default function NewSalePage() {
                               </span>
                               <Badge
                                 variant={
-                                  product.stock > product.reorder_level
+                                  product.stock > (product.reorder_level || 5)
                                     ? "outline"
                                     : "destructive"
                                 }
@@ -826,7 +701,7 @@ export default function NewSalePage() {
                               </Badge>
                             </div>
                             <div className="mt-2 text-xs text-gray-500">
-                              {product.category_name}
+                              {product.category_name || "Uncategorized"}
                             </div>
                           </CardContent>
                         </Card>
@@ -834,6 +709,12 @@ export default function NewSalePage() {
                     </div>
                   )}
                 </CardContent>
+                <CustomPagination
+                  currentPage={currentPage}
+                  onPageChange={handlePageChange}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                />
               </Card>
 
               <Card>
@@ -873,7 +754,7 @@ export default function NewSalePage() {
                         min={1}
                         value={quantity}
                         onChange={(e) =>
-                          setQuantity(parseInt(e.target.value) || 0)
+                          setQuantity(parseInt(e.target.value) || 1)
                         }
                       />
                     </div>
@@ -941,7 +822,7 @@ export default function NewSalePage() {
                           <TableRow key={index}>
                             <TableCell>{item.product_name}</TableCell>
                             <TableCell>
-                              {formatCurrency(item.unit_price)}
+                              {formatCurrency(parseFloat(item.unit_price))}
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center space-x-2">
@@ -1024,7 +905,7 @@ export default function NewSalePage() {
                         <TableRow>
                           <TableCell
                             colSpan={3}
-                            className="text-right font-bold"
+                            className="text-right font-medium"
                           >
                             Total:
                           </TableCell>
@@ -1042,245 +923,228 @@ export default function NewSalePage() {
           </Tabs>
         </div>
 
-        {/* Right Side - Customer Info and Summary */}
-        <div className="lg:col-span-1">
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User size={18} />
-                Customer Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="relative">
-                    <Label htmlFor="customerName">Customer Name</Label>
+        {/* Right Side - Sale Summary and Customer Information */}
+        <div>
+          <Tabs defaultValue="customer" className="mb-6">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="customer">
+                <User size={16} className="mr-2" />
+                Customer
+              </TabsTrigger>
+              <TabsTrigger value="payment">
+                <FileText size={16} className="mr-2" />
+                Payment
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="customer">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Customer Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="customerName">Customer Name *</Label>
                     <Input
                       id="customerName"
+                      placeholder="Enter customer name"
                       value={customer.name}
                       onChange={(e) =>
                         setCustomer({ ...customer, name: e.target.value })
                       }
-                      placeholder="Enter customer name"
-                      className="mb-1"
                       required
                     />
-                    {!showRecentCustomers && recentCustomers.length > 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowRecentCustomers(true)}
-                        className="text-xs px-2"
-                      >
-                        Show recent customers
-                      </Button>
-                    )}
-                    {showRecentCustomers && (
-                      <div className="absolute z-10 mt-1 bg-white border rounded-md shadow-lg w-full">
-                        <div className="p-2 border-b flex justify-between items-center">
-                          <span className="font-medium">Recent Customers</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowRecentCustomers(false)}
-                            className="h-6 w-6 p-0"
-                          >
-                            &times;
-                          </Button>
-                        </div>
-                        <div className="max-h-40 overflow-y-auto p-1">
-                          {recentCustomers.map((cust, i) => (
-                            <div
-                              key={i}
-                              className="p-2 hover:bg-gray-100 cursor-pointer rounded"
-                              onClick={() => selectCustomer(cust)}
-                            >
-                              <p className="font-medium">{cust.name}</p>
-                              <p className="text-xs text-gray-500">
-                                {cust.phone}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="customerPhone">Phone</Label>
-                  <Input
-                    id="customerPhone"
-                    value={customer.phone}
-                    onChange={(e) =>
-                      setCustomer({ ...customer, phone: e.target.value })
-                    }
-                    placeholder="Enter phone number"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="customerEmail">Email (Optional)</Label>
-                  <Input
-                    id="customerEmail"
-                    type="email"
-                    value={customer.email}
-                    onChange={(e) =>
-                      setCustomer({ ...customer, email: e.target.value })
-                    }
-                    placeholder="Enter email address"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Payment Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="paymentMethod">Payment Method</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={setPaymentMethod}
-                  >
-                    <SelectTrigger id="paymentMethod">
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Cash</SelectItem>
-                      <SelectItem value="card">Card</SelectItem>
-                      <SelectItem value="bank_transfer">
-                        Bank Transfer
-                      </SelectItem>
-                      <SelectItem value="mobile_payment">
-                        Mobile Payment
-                      </SelectItem>
-                      <SelectItem value="check">Check</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="amountPaid">Amount Paid</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="amountPaid"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={amountPaid}
-                      onChange={(e) =>
-                        setAmountPaid(parseFloat(e.target.value) || 0)
-                      }
-                    />
-                    <Button
-                      variant="outline"
-                      onClick={handleApplyFullPayment}
-                      className="whitespace-nowrap"
-                    >
-                      Full Amount
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="border-t pt-4">
-                  <div className="flex justify-between mb-2">
-                    <span className="text-gray-500">Subtotal:</span>
-                    <span>{formatCurrency(calculateSubtotal())}</span>
                   </div>
                   <div>
-                    <Label htmlFor="discountType">Discount</Label>
-                    <div className="flex gap-2">
+                    <Label htmlFor="customerPhone">Phone Number</Label>
+                    <Input
+                      id="customerPhone"
+                      placeholder="Enter phone number"
+                      value={customer.phone}
+                      onChange={(e) =>
+                        setCustomer({ ...customer, phone: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="customerEmail">Email Address</Label>
+                    <Input
+                      id="customerEmail"
+                      type="email"
+                      placeholder="Enter email address"
+                      value={customer.email}
+                      onChange={(e) =>
+                        setCustomer({ ...customer, email: e.target.value })
+                      }
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="payment">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payment Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="paymentMethod">Payment Method</Label>
+                    <Select
+                      value={paymentMethod}
+                      onValueChange={setPaymentMethod}
+                    >
+                      <SelectTrigger id="paymentMethod">
+                        <SelectValue placeholder="Select payment method" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="cash">Cash</SelectItem>
+                        <SelectItem value="card">Card</SelectItem>
+                        <SelectItem value="cheque">Cheque</SelectItem>
+                        <SelectItem value="bank_transfer">
+                          Bank Transfer
+                        </SelectItem>
+                        <SelectItem value="mobile_payment">
+                          Mobile Payment
+                        </SelectItem>
+                        <SelectItem value="credit">Store Credit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="discountType">Discount Type</Label>
                       <Select
                         value={discountType}
                         onValueChange={setDiscountType}
                       >
-                        <SelectTrigger id="discountType" className="w-32">
-                          <SelectValue />
+                        <SelectTrigger id="discountType">
+                          <SelectValue placeholder="Select discount type" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="amount">Amount</SelectItem>
-                          <SelectItem value="percentage">Percentage</SelectItem>
+                          <SelectItem value="amount">Fixed Amount</SelectItem>
+                          <SelectItem value="percentage">
+                            Percentage (%)
+                          </SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="discountAmount">
+                        {discountType === "percentage"
+                          ? "Discount %"
+                          : "Discount Amount"}
+                      </Label>
                       <Input
+                        id="discountAmount"
                         type="number"
                         min={0}
-                        step={discountType === "percentage" ? "1" : "0.01"}
-                        max={
-                          discountType === "percentage"
-                            ? 100
-                            : calculateSubtotal()
-                        }
-                        value={discountAmount}
+                        value={discountAmount || ""}
                         onChange={(e) =>
                           setDiscountAmount(parseFloat(e.target.value) || 0)
                         }
                       />
                     </div>
                   </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between mt-2">
-                      <span className="text-gray-500">Discount:</span>
-                      <span>-{formatCurrency(calculateDiscount())}</span>
+
+                  <div>
+                    <div className="flex justify-between mb-2">
+                      <Label htmlFor="paidAmount">Amount Paid</Label>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleApplyFullPayment}
+                      >
+                        Apply Full Amount
+                      </Button>
                     </div>
-                  )}
-                  <div className="flex justify-between mt-2 font-bold">
-                    <span>Total:</span>
-                    <span>{formatCurrency(calculateTotal())}</span>
+                    <Input
+                      id="paidAmount"
+                      type="number"
+                      min={0}
+                      value={amountPaid || ""}
+                      onChange={(e) =>
+                        setAmountPaid(parseFloat(e.target.value) || 0)
+                      }
+                    />
                   </div>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-gray-500">Amount Paid:</span>
-                    <span>{formatCurrency(amountPaid)}</span>
+
+                  <div>
+                    <Label htmlFor="saleNotes">Notes</Label>
+                    <Textarea
+                      id="saleNotes"
+                      placeholder="Add sale notes (optional)"
+                      rows={3}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                    />
                   </div>
-                  <div className="flex justify-between mt-2 font-medium">
-                    <span>Balance Due:</span>
-                    <span>{formatCurrency(calculateBalance())}</span>
-                  </div>
-                  <div className="mt-2">
-                    <span className="text-gray-500">Payment Status:</span>
-                    {getPaymentStatusBadge(getPaymentStatus())}
-                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Sale Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="text-gray-500">Items:</div>
+                <div className="text-right font-medium">
+                  {saleItems.reduce((sum, item) => sum + item.quantity, 0)} (
+                  {saleItems.length} unique)
+                </div>
+
+                <div className="text-gray-500">Subtotal:</div>
+                <div className="text-right font-medium">
+                  {formatCurrency(calculateSubtotal())}
+                </div>
+
+                <div className="text-gray-500">Discount:</div>
+                <div className="text-right font-medium">
+                  {formatCurrency(calculateDiscount())}
+                </div>
+
+                <div className="text-gray-500">Total:</div>
+                <div className="text-right font-bold">
+                  {formatCurrency(calculateTotal())}
+                </div>
+
+                <div className="text-gray-500">Amount Paid:</div>
+                <div className="text-right font-medium">
+                  {formatCurrency(amountPaid || 0)}
+                </div>
+
+                <div className="text-gray-500">Balance:</div>
+                <div className="text-right font-bold">
+                  {formatCurrency(calculateBalance())}
+                </div>
+
+                <div className="text-gray-500">Payment Status:</div>
+                <div className="text-right">
+                  {getPaymentStatusBadge(getPaymentStatus())}
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any additional notes about this sale"
-                rows={3}
-              />
-            </CardContent>
-          </Card>
-
-          <div className="flex flex-col gap-4">
+          <div className="mt-6 space-y-4">
             <Button
-              variant="outline"
+              className="w-full"
               onClick={toggleInvoicePreview}
-              className="flex items-center gap-2"
               disabled={saleItems.length === 0}
             >
-              <FileText size={16} />
               Preview Invoice
             </Button>
-
             <Button
+              className="w-full"
+              variant="default"
               disabled={
                 saleItems.length === 0 || !customer.name.trim() || submitting
               }
               onClick={handleCreateSale}
-              className="flex items-center gap-2"
             >
               {submitting ? "Creating Sale..." : "Complete Sale"}
             </Button>

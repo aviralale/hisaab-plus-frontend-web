@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import Logo from "@/assets/images/favicon-white.png";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 const menuItems = [
   { name: "Features", href: "/features" },
@@ -13,6 +15,17 @@ const menuItems = [
 
 export default function Navbar() {
   const [menuState, setMenuState] = useState(false);
+  const { user, isAuthenticated } = useAuth();
+  const getInitials = () => {
+    if (!user?.full_name) return "";
+    const nameParts = user.full_name.split(" ");
+    const initials = nameParts
+      .filter((part) => part.length > 0)
+      .map((part) => part[0].toUpperCase())
+      .join("");
+
+    return initials;
+  };
 
   return (
     <header>
@@ -58,16 +71,27 @@ export default function Navbar() {
               </div>
 
               <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit lg:border-l lg:pl-6">
-                <Button asChild variant="outline" size="sm">
-                  <Link to="/login">
-                    <span>Login</span>
+                {isAuthenticated ? (
+                  <Link to="/dashboard">
+                    <Avatar>
+                      <AvatarImage src={user?.profile_picture} alt="@shadcn" />
+                      <AvatarFallback>{getInitials()}</AvatarFallback>
+                    </Avatar>
                   </Link>
-                </Button>
-                <Button asChild size="sm">
-                  <Link to="/register">
-                    <span>Sign Up</span>
-                  </Link>
-                </Button>
+                ) : (
+                  <>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/login">
+                        <span>Login</span>
+                      </Link>
+                    </Button>
+                    <Button asChild size="sm">
+                      <Link to="/register">
+                        <span>Sign Up</span>
+                      </Link>
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -11,7 +11,6 @@ import ProductsPage from "./pages/Inventory Manager/ProductsPage";
 import ProductDetailPage from "./pages/Inventory Manager/ProductDetailPage";
 import ProductForm from "./pages/Inventory Manager/ProductForm";
 import HomePage from "./pages/HomePage";
-import Footer from "./layout/Footer";
 import { Toaster } from "sonner";
 import CategoriesPage from "./pages/Inventory Manager/CategoryPage";
 import SuppliersPage from "./pages/Inventory Manager/SupplierPage";
@@ -36,23 +35,93 @@ import TermsAndConditions from "./pages/TermsAndConditionsPage";
 import PrivacyPolicy from "./pages/PrivacyPolicyPage";
 import Loader from "./components/loader";
 import { useEffect, useState } from "react";
+import { ProfilePage } from "./pages/Authentication/ProfilePage";
+import { BillingPage } from "./pages/Inventory Manager/BillingPage";
 
+// Custom hook for setting page title
+function usePageTitle(pathname: string) {
+  useEffect(() => {
+    // Base title for the application
+    const baseTitle = "Hisaab Plus";
+
+    // Map routes to their respective titles
+    const routeTitles: Record<string, string> = {
+      "/": "Home | Hisaab Plus",
+      "/features": "Features | Hisaab Plus",
+      "/solutions": "Solutions | Hisaab Plus",
+      "/pricing": "Pricing | Hisaab Plus",
+      "/about": "About Us | Hisaab Plus",
+      "/testimonials": "Testimonials | Hisaab Plus",
+      "/help": "FAQs | Hisaab Plus",
+      "/contact": "Contact Us | Hisaab Plus",
+      "/terms-and-conditions": "Terms and Conditions | Hisaab Plus",
+      "/privacy-policy": "Privacy Policy | Hisaab Plus",
+      "/login": "Login | Hisaab Plus",
+      "/register": "Register | Hisaab Plus",
+      "/registration-success": "Registration Success | Hisaab Plus",
+      "/forgot-password": "Reset Password | Hisaab Plus",
+      "/create-business": "Create Business | Hisaab Plus",
+      "/dashboard": "Dashboard | Hisaab Plus",
+      "/categories": "Categories | Hisaab Plus",
+      "/suppliers": "Suppliers | Hisaab Plus",
+      "/stock-entries": "Stock Entries | Hisaab Plus",
+      "/sales": "Sales | Hisaab Plus",
+      "/sales/new": "New Sale | Hisaab Plus",
+      "/products": "Products | Hisaab Plus",
+      "/products/new": "New Product | Hisaab Plus",
+    };
+
+    // For dynamic routes like /products/:id or /sales/:id
+    if (pathname.match(/^\/products\/\d+$/)) {
+      document.title = "Product Details | Hisaab Plus";
+    } else if (pathname.match(/^\/products\/edit\/\d+$/)) {
+      document.title = "Edit Product | Hisaab Plus";
+    } else if (pathname.match(/^\/sales\/\d+$/)) {
+      document.title = "Sale Details | Hisaab Plus";
+    } else if (pathname.match(/^\/activate\/\w+\/\w+$/)) {
+      document.title = "Account Activation | Hisaab Plus";
+    } else {
+      // For routes explicitly defined in the routeTitles object
+      document.title = routeTitles[pathname] || `${baseTitle}`;
+    }
+  }, [pathname]);
+}
+
+// Wrap the routes in a component that can access the router context
 function AppRoutes() {
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
 
-  const publicRoutes = ["/"];
+  // Set page title based on current route
+  usePageTitle(location.pathname);
 
+  // List of public homepage routes where we want to show the loader
+  const publicRoutes = [
+    "/",
+    "/features",
+    "/solutions",
+    "/pricing",
+    "/about",
+    "/testimonials",
+    "/help",
+    "/contact",
+    "/terms-and-conditions",
+    "/privacy-policy",
+  ];
+
+  // Check if current path is a public route that needs the loader
   const shouldShowLoader = publicRoutes.includes(location.pathname);
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
 
     if (shouldShowLoader) {
+      // Only set a timer if we're on a route that should show the loader
       timer = setTimeout(() => {
         setIsLoading(false);
       }, 8000);
     } else {
+      // For dashboard routes, don't show loader
       setIsLoading(false);
     }
 
@@ -148,6 +217,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <ProfilePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/billing"
+        element={
+          <ProtectedRoute>
+            <BillingPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/categories"
         element={
           <ProtectedRoute>
@@ -229,6 +314,7 @@ function AppRoutes() {
       />
 
       {/* 404 Route */}
+      <Route path="/loading" element={<Loader />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
@@ -241,7 +327,6 @@ function App() {
         <ApiProvider>
           <AppRoutes />
           <Toaster richColors />
-          <Footer />
         </ApiProvider>
       </AuthProvider>
     </ThemeProvider>

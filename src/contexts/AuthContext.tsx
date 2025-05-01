@@ -40,7 +40,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // This function will check if there's a valid auth token and fetch user data
   const fetchUserData = async () => {
     try {
       console.log("Fetching user data...");
@@ -55,12 +54,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error) {
       console.error("Failed to fetch user data:", error);
 
-      // Don't reset authentication state here - let the calling function decide
       return false;
     }
   };
 
-  // Initial authentication check on component mount
   useEffect(() => {
     const checkAuthStatus = async () => {
       setLoading(true);
@@ -70,7 +67,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         try {
           const success = await fetchUserData();
           if (!success) {
-            // Token is invalid or expired despite refresh attempt
             localStorage.removeItem("access");
             localStorage.removeItem("refresh");
             setIsAuthenticated(false);
@@ -84,7 +80,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setUser(null);
         }
       } else {
-        // No token found, ensure user is logged out
         setIsAuthenticated(false);
         setUser(null);
       }
@@ -97,25 +92,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const login = async (credentials: LoginUser): Promise<boolean> => {
     setLoading(true);
     try {
-      // Clear any existing tokens first
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
 
-      // Get tokens from login request
       const data = await loginUser(credentials);
 
-      // Ensure token was received
       if (!data || !data.access) {
         toast.error("Login failed. No authentication token received.");
         setLoading(false);
         return false;
       }
-
-      // Give the system a moment to save tokens before fetching user data
-      // This is important as the axiosInstance interceptor needs time to pick up the new token
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Now fetch user data
       const success = await fetchUserData();
 
       if (!success) {
@@ -126,7 +114,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       toast.success("Login successful!");
 
-      // Only navigate after user data is successfully fetched
       const origin = location.state?.from?.pathname || "/dashboard";
       navigate(origin);
 
@@ -147,7 +134,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     localStorage.removeItem("email");
     setUser(null);
     setIsAuthenticated(false);
-    navigate("/login");
+    navigate("/");
     toast.success("Logged out successfully");
   };
 

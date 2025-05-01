@@ -1,6 +1,14 @@
 export interface Business {
   id: number;
   name: string;
+  legal_name: string;
+  business_type: string;
+  industry: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  country: string;
+  tax_id: string;
   address: string;
   created_at: string;
   users_count?: number;
@@ -44,6 +52,7 @@ export interface Product {
   description: string;
   category: number;
   category_name: string;
+  unit?: string;
   supplier: number;
   supplier_name: string;
   stock: number;
@@ -58,14 +67,14 @@ export interface Product {
 }
 
 export interface SaleItem {
-  id: number;
+  id?: number;
   product: number;
   product_name: string;
   quantity: number;
   unit_price: string;
   subtotal: number;
-  sale_date: string;
-  customer_name: string;
+  sale_date?: string;
+  customer_name?: string;
 }
 
 export interface Sale {
@@ -85,6 +94,7 @@ export interface Sale {
   business_details: {
     id: number;
     name: string;
+    legal_name?: string;
     address: string;
     email: string;
     phone: string;
@@ -96,14 +106,16 @@ export interface Sale {
 export type SalesData = Sale[];
 
 export interface StockEntry {
-  id: number;
-  date_added: string;
-  entry_type: string;
-  entry_type_display: string;
+  id?: number;
+  product: number;
+  product_name: string;
   quantity: number;
-  unit_price: number;
+  entry_type: string;
+  unit_price: string;
+  date_added: string;
+  invoice_number: string;
   notes: string | null;
-  created_by: string;
+  created_by?: number;
 }
 
 export interface RegisterUser {
@@ -185,3 +197,16 @@ export interface DashboardTypes {
   percentage_increase_from_yesterday: number;
   percentage_increase_from_30_days_ago: number;
 }
+
+export interface PaginatedResponse<T> {
+  count: number;
+  next: string | null;
+  previous: string | null;
+  results: T[];
+}
+
+export type ProductsResponse = PaginatedResponse<Product>;
+export type SalesResponse = PaginatedResponse<Sale>;
+export type CategoriesResponse = PaginatedResponse<Category>;
+export type SuppliersResponse = PaginatedResponse<Supplier>;
+export type StockEntriesResponse = PaginatedResponse<StockEntry>;

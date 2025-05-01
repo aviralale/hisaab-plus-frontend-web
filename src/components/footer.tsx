@@ -26,6 +26,14 @@ const links = [
     title: "About",
     to: "/about",
   },
+  {
+    title: "Terms and Conditions",
+    to: "/terms-and-conditions",
+  },
+  {
+    title: "Privacy Policy",
+    to: "/privacy-policy",
+  },
 ];
 
 export default function FooterSection() {

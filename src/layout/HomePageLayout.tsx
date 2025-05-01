@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import Navbar from "@/components/navbar";
+import Footer from "./Footer";
 interface HomePageLayoutProps {
   children: ReactNode;
 }
@@ -19,6 +20,7 @@ export default function HomePageLayout({ children }: HomePageLayoutProps) {
       </div>
 
       <main>{children}</main>
+      <Footer />
     </>
   );
 }

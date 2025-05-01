@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useApi } from "@/contexts/ApiContext";
-import { Sale } from "@/types";
+import { Sale, SalesResponse } from "@/types";
 
 function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
@@ -32,8 +32,8 @@ function SalesPage() {
   const fetchSales = async (): Promise<void> => {
     try {
       setLoading(true);
-      const response: Sale[] = await get("/sales/");
-      setSales(response);
+      const response = await get<SalesResponse>("/sales/");
+      setSales(response.results);
     } catch (error) {
       console.error("Error fetching sales:", error);
       toast.error("Failed to load sales. Please try again.");

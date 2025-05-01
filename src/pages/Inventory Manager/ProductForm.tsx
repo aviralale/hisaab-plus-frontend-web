@@ -32,22 +32,36 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
-import { Product } from "@/types";
+import { CategoriesResponse, Product, SuppliersResponse } from "@/types";
 import Loader from "@/components/loader";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Option = {
   id: number;
   name: string;
 };
 
-// Update Product interface to correctly handle image types
+// Define unit choices based on the backend model
+const UNIT_CHOICES = [
+  { value: "kg", label: "Kilogram" },
+  { value: "g", label: "Gram" },
+  { value: "l", label: "Liter" },
+  { value: "ml", label: "Milliliter" },
+  { value: "pcs", label: "Piece" },
+  { value: "box", label: "Box" },
+  { value: "pack", label: "Pack" },
+];
+
 interface ExtendedProduct extends Omit<Product, "image"> {
   image: string | null;
   imagePreview?: string | null;
+  business?: number | undefined;
+  unit: string;
 }
 
 const emptyProduct: ExtendedProduct = {
   id: 0,
+  business: undefined,
   name: "",
   sku: "",
   description: "",
@@ -63,6 +77,7 @@ const emptyProduct: ExtendedProduct = {
   category_name: "",
   supplier_name: "",
   created_at: "",
+  unit: "pcs", // Set default unit to piece
 };
 
 const ProductForm = () => {
@@ -77,6 +92,7 @@ const ProductForm = () => {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [categories, setCategories] = useState<Option[]>([]);
   const [suppliers, setSuppliers] = useState<Option[]>([]);
+  const { user } = useAuth();
 
   // Check if the endpoint is currently loading
   const isSubmitting = api.isLoading(
@@ -103,8 +119,8 @@ const ProductForm = () => {
 
   const fetchCategories = async () => {
     try {
-      const data = await api.get<Option[]>("/categories/");
-      setCategories(data);
+      const data = await api.get<CategoriesResponse>("/categories/");
+      setCategories(data.results);
     } catch (error) {
       console.error("Error fetching categories:", error);
       toast.error("Failed to load categories");
@@ -113,8 +129,8 @@ const ProductForm = () => {
 
   const fetchSuppliers = async () => {
     try {
-      const data = await api.get<Option[]>("/suppliers/");
-      setSuppliers(data);
+      const data = await api.get<SuppliersResponse>("/suppliers/");
+      setSuppliers(data.results);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
       toast.error("Failed to load suppliers");
@@ -128,11 +144,11 @@ const ProductForm = () => {
       const extendedData: ExtendedProduct = {
         ...data,
         imagePreview: data.image,
+        unit: data.unit || "pcs",
       };
       setProduct(extendedData);
     } catch (error) {
       console.error("Error fetching product:", error);
-      // Error handling is managed by ApiContext
     }
   };
 
@@ -152,7 +168,7 @@ const ProductForm = () => {
   };
 
   const handleSelectChange = (name: keyof ExtendedProduct, value: string) => {
-    setProduct({ ...product, [name]: Number(value) });
+    setProduct({ ...product, [name]: name === "unit" ? value : Number(value) });
     if (errors[name]) setErrors({ ...errors, [name]: "" });
   };
 
@@ -183,6 +199,7 @@ const ProductForm = () => {
     if (!product.sku) newErrors.sku = "SKU is required";
     if (!product.category) newErrors.category = "Category is required";
     if (!product.supplier) newErrors.supplier = "Supplier is required";
+    if (!product.unit) newErrors.unit = "Unit is required";
     if (product.cost_price === 0 || isNaN(Number(product.cost_price)))
       newErrors.cost_price = "Valid cost price is required";
     if (product.selling_price === 0 || isNaN(Number(product.selling_price)))
@@ -203,7 +220,9 @@ const ProductForm = () => {
     try {
       // Prepare form data for API submission
       const formData = new FormData();
-
+      if (user?.business_details?.id) {
+        formData.append("business", user.business_details.id.toString());
+      }
       // Only include the fields the API expects
       const fieldsToInclude = [
         "name",
@@ -211,6 +230,7 @@ const ProductForm = () => {
         "description",
         "category",
         "supplier",
+        "unit", // Include unit field
         "cost_price",
         "selling_price",
         "reorder_level",
@@ -226,7 +246,6 @@ const ProductForm = () => {
           );
         }
       });
-
       // Handle image separately
       if (imageFile) {
         formData.append("image", imageFile);
@@ -478,6 +497,28 @@ const ProductForm = () => {
                     <span className="text-sm text-red-500">
                       {errors.category}
                     </span>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="unit">Unit</Label>
+                  <Select
+                    value={product.unit}
+                    onValueChange={(value) => handleSelectChange("unit", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNIT_CHOICES.map((unit) => (
+                        <SelectItem key={unit.value} value={unit.value}>
+                          {unit.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {errors.unit && (
+                    <span className="text-sm text-red-500">{errors.unit}</span>
                   )}
                 </div>
 
