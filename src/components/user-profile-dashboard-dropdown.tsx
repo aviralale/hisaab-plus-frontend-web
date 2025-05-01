@@ -79,9 +79,11 @@ export function UserProfileDashboardDropdown() {
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => navigate("/team")}>
-              Team
-            </DropdownMenuItem>
+            {user?.role === "owner" && (
+              <DropdownMenuItem onClick={() => navigate("/team")}>
+                Team
+              </DropdownMenuItem>
+            )}
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem>Support</DropdownMenuItem>

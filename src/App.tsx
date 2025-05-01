@@ -4,6 +4,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ApiProvider } from "@/contexts/ApiContext";
 import ProtectedRoute from "@/routes/ProtectedRoute";
 import PublicRoute from "@/routes/PublicRoute";
+import ProtectedBusinessRoute from "@/routes/ProtectedBusinessRoute";
+import ProtectedRolesRoute from "@/routes/ProtectedRolesRoute";
 import LoginPage from "./pages/Authentication/Login";
 import RegisterPage from "./pages/Authentication/Register";
 import Dashboard from "./pages/Authentication/Dashboard";
@@ -36,7 +38,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicyPage";
 import Loader from "./components/loader";
 import { useEffect, useState } from "react";
 import { ProfilePage } from "./pages/Authentication/ProfilePage";
-import { BillingPage } from "./pages/Inventory Manager/BillingPage";
+import TeamsPage from "./pages/Authentication/TeamsPage";
 
 // Custom hook for setting page title
 function usePageTitle(pathname: string) {
@@ -148,8 +150,6 @@ function AppRoutes() {
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-
-      {/* Authentication Routes - Restricted when logged in */}
       <Route
         path="/login"
         element={
@@ -211,105 +211,111 @@ function AppRoutes() {
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedBusinessRoute>
             <Dashboard />
-          </ProtectedRoute>
+          </ProtectedBusinessRoute>
         }
       />
       <Route
         path="/profile"
         element={
-          <ProtectedRoute>
+          <ProtectedBusinessRoute>
             <ProfilePage />
-          </ProtectedRoute>
+          </ProtectedBusinessRoute>
         }
       />
-      <Route
-        path="/billing"
-        element={
-          <ProtectedRoute>
-            <BillingPage />
-          </ProtectedRoute>
-        }
-      />
+
+      {/* Routes accessible by any business role */}
       <Route
         path="/categories"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff", "accountant"]}>
             <CategoriesPage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
+
+      {/* Routes accessible by owner and staff only */}
       <Route
         path="/suppliers"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff"]}>
             <SuppliersPage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/stock-entries"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff"]}>
             <StockEntriesPage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
+
+      {/* Routes accessible by owner, staff, and accountant */}
       <Route
         path="/sales"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff", "accountant"]}>
             <SalesPage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/sales/new"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff"]}>
             <NewSalePage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/sales/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff", "accountant"]}>
             <SaleDetailPageWithLayout />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/products"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff", "accountant"]}>
             <ProductsPage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/products/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff", "accountant"]}>
             <ProductDetailPage />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/products/edit/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff"]}>
             <ProductForm />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
         }
       />
       <Route
         path="/products/new"
         element={
-          <ProtectedRoute>
+          <ProtectedRolesRoute allowedRoles={["owner", "staff"]}>
             <ProductForm />
-          </ProtectedRoute>
+          </ProtectedRolesRoute>
+        }
+      />
+      <Route
+        path="/team"
+        element={
+          <ProtectedRolesRoute allowedRoles={["owner"]}>
+            <TeamsPage />
+          </ProtectedRolesRoute>
         }
       />
 

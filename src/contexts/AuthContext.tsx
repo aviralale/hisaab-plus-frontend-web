@@ -15,6 +15,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
+  hasBusiness: boolean;
   login: (credentials: LoginUser) => Promise<boolean>;
   logout: () => void;
 }
@@ -37,6 +38,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [hasBusiness, setHasBusiness] = useState<boolean>(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -49,6 +51,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.log("User data received:", response.data);
 
       setUser(response.data);
+      setHasBusiness(response.data.business);
       setIsAuthenticated(true);
       return true;
     } catch (error) {
@@ -58,35 +61,35 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      setLoading(true);
-      const token = localStorage.getItem("access");
+  const checkAuthStatus = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("access");
 
-      if (token) {
-        try {
-          const success = await fetchUserData();
-          if (!success) {
-            localStorage.removeItem("access");
-            localStorage.removeItem("refresh");
-            setIsAuthenticated(false);
-            setUser(null);
-          }
-        } catch (error) {
-          console.error("Error during authentication check:", error);
+    if (token) {
+      try {
+        const success = await fetchUserData();
+        if (!success) {
           localStorage.removeItem("access");
           localStorage.removeItem("refresh");
           setIsAuthenticated(false);
           setUser(null);
         }
-      } else {
+      } catch (error) {
+        console.error("Error during authentication check:", error);
+        localStorage.removeItem("access");
+        localStorage.removeItem("refresh");
         setIsAuthenticated(false);
         setUser(null);
       }
+    } else {
+      setIsAuthenticated(false);
+      setUser(null);
+    }
 
-      setLoading(false);
-    };
+    setLoading(false);
+  };
 
+  useEffect(() => {
     checkAuthStatus();
   }, []);
   const login = async (credentials: LoginUser): Promise<boolean> => {
@@ -142,6 +145,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     user,
     loading,
     isAuthenticated,
+    hasBusiness,
     login,
     logout,
   };

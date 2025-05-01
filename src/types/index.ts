@@ -1,17 +1,22 @@
 export interface Business {
   id: number;
   name: string;
-  legal_name: string;
+  legal_name?: string;
   business_type: string;
   industry: string;
-  city: string;
-  state: string;
-  zip_code: string;
-  country: string;
-  tax_id: string;
-  address: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+  tax_id?: string;
+  fiscal_year_end?: string;
+  currency_code: string;
+  timezone: string;
+  is_active: boolean;
   created_at: string;
-  users_count?: number;
 }
 
 export interface User {
