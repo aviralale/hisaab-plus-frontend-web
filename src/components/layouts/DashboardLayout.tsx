@@ -12,6 +12,8 @@ import {
   X,
   Bell,
   Search,
+  ShieldHalf,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,12 +43,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import { useAuth } from "@/contexts/AuthContext"; // Import auth context
 
 // Define proper types for navigation items
 type NavItemType = {
   name: string;
   icon: React.ElementType;
   path: string;
+  roles?: string[]; // Add roles to control visibility
 };
 
 type NavGroupType = {
@@ -71,31 +75,57 @@ type NotificationType = {
   read: boolean;
 };
 
-// Organized navigation items with group structure
+// Organized navigation items with group structure and role-based access
 const navItems: NavGroupType[] = [
   {
     groupName: "Overview",
-    items: [{ name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" }],
+    items: [
+      { name: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
+      { name: "Profile", icon: UserCog, path: "/profile" },
+    ],
   },
   {
     groupName: "Inventory",
     items: [
-      { name: "Products", icon: Package, path: "/products" },
-      { name: "Categories", icon: PackageOpen, path: "/categories" },
-      { name: "Stock Entries", icon: Box, path: "/stock-entries" },
+      {
+        name: "Products",
+        icon: Package,
+        path: "/products",
+        roles: ["owner", "staff", "accountant"],
+      },
+      {
+        name: "Categories",
+        icon: PackageOpen,
+        path: "/categories",
+        roles: ["owner", "staff", "accountant"],
+      },
+      {
+        name: "Stock Entries",
+        icon: Box,
+        path: "/stock-entries",
+        roles: ["owner", "staff"],
+      },
     ],
   },
   {
     groupName: "Business",
     items: [
-      { name: "Sales", icon: ShoppingCart, path: "/sales" },
-      { name: "Suppliers", icon: Users, path: "/suppliers" },
+      {
+        name: "Sales",
+        icon: ShoppingCart,
+        path: "/sales",
+        roles: ["owner", "staff", "accountant"],
+      },
+      {
+        name: "Suppliers",
+        icon: Users,
+        path: "/suppliers",
+        roles: ["owner", "staff"],
+      },
+      { name: "Team", icon: ShieldHalf, path: "/team", roles: ["owner"] },
     ],
   },
 ];
-
-// Flatten nav items for page title lookup and search
-const flatNavItems = navItems.flatMap((group) => group.items);
 
 // Sample notifications for demonstration
 const sampleNotifications: NotificationType[] = [
@@ -125,6 +155,7 @@ const sampleNotifications: NotificationType[] = [
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get authenticated user with role information
   const [open, setOpen] = useState(false);
   const [pageTitle, setPageTitle] = useState("");
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState("");
@@ -136,13 +167,49 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   // Calculate unread notifications
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Filter navigation items based on user role
+  const filteredNavItems = useMemo(() => {
+    const userRole = user?.role || ""; // Get user role from context
+
+    return navItems
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => {
+          // If no roles specified, show to everyone
+          if (!item.roles) return true;
+          // Otherwise, show only if user has the required role
+          return item.roles.includes(userRole);
+        }),
+      }))
+      .filter((group) => group.items.length > 0); // Remove empty groups
+  }, [user]);
+
+  // Flatten nav items for page title lookup and search
+  const flatNavItems = useMemo(() => {
+    return filteredNavItems.flatMap((group) => group.items);
+  }, [filteredNavItems]);
+
   // Set page title based on current route
   useEffect(() => {
     const currentNav = flatNavItems.find(
       (item) => item.path === location.pathname
     );
-    setPageTitle(currentNav?.name || "Dashboard");
-  }, [location.pathname]);
+
+    // Custom handling for dynamic routes
+    if (location.pathname.match(/^\/products\/\d+$/)) {
+      setPageTitle("Product Details");
+    } else if (location.pathname.match(/^\/products\/edit\/\d+$/)) {
+      setPageTitle("Edit Product");
+    } else if (location.pathname.match(/^\/sales\/\d+$/)) {
+      setPageTitle("Sale Details");
+    } else if (location.pathname === "/products/new") {
+      setPageTitle("New Product");
+    } else if (location.pathname === "/sales/new") {
+      setPageTitle("New Sale");
+    } else {
+      setPageTitle(currentNav?.name || "Dashboard");
+    }
+  }, [location.pathname, flatNavItems]);
 
   // Handle global keyboard shortcuts
   useEffect(() => {
@@ -165,15 +232,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     return flatNavItems.filter((item) =>
       item.name.toLowerCase().includes(query)
     );
-  }, [sidebarSearchQuery]);
+  }, [sidebarSearchQuery, flatNavItems]);
 
   // Filter nav groups and their items based on command search query
   const filteredNavGroups = useMemo(() => {
-    if (!commandSearchQuery.trim()) return navItems;
+    if (!commandSearchQuery.trim()) return filteredNavItems;
 
     const query = commandSearchQuery.toLowerCase();
 
-    return navItems
+    return filteredNavItems
       .map((group) => ({
         ...group,
         items: group.items.filter((item) =>
@@ -181,12 +248,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         ),
       }))
       .filter((group) => group.items.length > 0);
-  }, [commandSearchQuery]);
+  }, [commandSearchQuery, filteredNavItems]);
 
   // Handle command search input change
   const handleCommandSearchChange = (value: string) => {
     setCommandSearchQuery(value);
-    console.log("Search command", value);
   };
 
   // Handle search navigation
@@ -211,7 +277,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
   // Navigation item component with enhanced visual feedback
   const NavItem: React.FC<NavItemType> = ({ name, icon: Icon, path }) => {
-    const isActive = location.pathname === path;
+    const isActive =
+      location.pathname === path ||
+      (path !== "/dashboard" && location.pathname.startsWith(path));
 
     return (
       <Link
@@ -438,7 +506,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </div>
 
               <nav className="px-4 pb-4">
-                {navItems.map((group) => (
+                {filteredNavItems.map((group) => (
                   <div key={group.groupName} className="mb-6">
                     <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider px-4">
                       {group.groupName}
@@ -468,7 +536,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         </header>
 
         {/* Desktop sidebar with improved visual hierarchy */}
-        <aside className="hidden  md:flex flex-col w-64 border-r bg-background/70 backdrop-blur-sm">
+        <aside className="hidden md:flex flex-col w-64 border-r bg-background/70 backdrop-blur-sm">
           <div className="p-5 border-b">
             <AppBranding variant="sidebar" />
           </div>
@@ -515,7 +583,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex-1 overflow-y-auto px-3">
-            {navItems.map((group) => (
+            {filteredNavItems.map((group) => (
               <div key={group.groupName} className="mb-6">
                 <div className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider px-4">
                   {group.groupName}

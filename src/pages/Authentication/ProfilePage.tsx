@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useApi } from "@/contexts/ApiContext";
 import {
@@ -16,16 +16,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Check, Info, Upload, X } from "lucide-react";
+import { Check, Info, Upload, X, Crop as CropIcon } from "lucide-react";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Loader from "@/components/loader";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import ReactCrop, { Crop, PixelCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 
 interface FormData {
   full_name: string;
   email: string;
   phone: string;
-  bio?: string;
-  location?: string;
 }
 
 interface Notification {
@@ -34,19 +48,34 @@ interface Notification {
 }
 
 export function ProfilePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading, updateUserData } = useAuth();
   const { patch } = useApi();
   const [formData, setFormData] = useState<FormData>({
     full_name: "",
     email: "",
     phone: "",
-    bio: "",
-    location: "",
   });
   const [isEditing, setIsEditing] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Photo upload state
+  const [isPhotoDialogOpen, setIsPhotoDialogOpen] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [crop, setCrop] = useState<Crop>({
+    unit: "%",
+    width: 100,
+    height: 100,
+    x: 0,
+    y: 0,
+  });
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isCropMode, setIsCropMode] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -57,8 +86,6 @@ export function ProfilePage() {
             full_name: user.full_name || "",
             email: user.email || "",
             phone: user.phone || "",
-            bio: "",
-            location: "",
           });
         }
       } catch (err) {
@@ -82,7 +109,11 @@ export function ProfilePage() {
     try {
       if (!user?.id) return;
 
-      await patch(`/auth/users/me/`, formData);
+      const response = await patch(`/auth/users/me/`, formData);
+
+      // Update the user data in the auth context
+      updateUserData(response);
+
       setIsEditing(false);
       setNotification({
         type: "success",
@@ -117,7 +148,183 @@ export function ProfilePage() {
     });
   };
 
-  if (loading) {
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileSelect(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFileSelect(e.target.files[0]);
+    }
+  };
+
+  const handleFileSelect = (file: File) => {
+    // Validate file is an image
+    if (!file.type.match("image.*")) {
+      setNotification({
+        type: "error",
+        message: "Please select an image file (PNG, JPG, JPEG, etc)",
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setNotification({
+        type: "error",
+        message: "Image is too large. Please select an image under 5MB.",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadedImage(e.target?.result as string);
+      setIsCropMode(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Image cropping functions
+  const getCroppedImg = (): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      if (!imgRef.current || !completedCrop) {
+        reject(new Error("No image or crop data"));
+        return;
+      }
+
+      const image = imgRef.current;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Could not get canvas context"));
+        return;
+      }
+
+      // Calculate the size of the crop
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+
+      canvas.width = completedCrop.width;
+      canvas.height = completedCrop.height;
+
+      ctx.drawImage(
+        image,
+        completedCrop.x * scaleX,
+        completedCrop.y * scaleY,
+        completedCrop.width * scaleX,
+        completedCrop.height * scaleY,
+        0,
+        0,
+        completedCrop.width,
+        completedCrop.height
+      );
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Canvas is empty"));
+            return;
+          }
+          resolve(blob);
+        },
+        "image/jpeg",
+        0.95
+      );
+    });
+  };
+
+  const handleSaveImage = async () => {
+    try {
+      setIsUploading(true);
+
+      if (!uploadedImage) {
+        setNotification({
+          type: "error",
+          message: "No image to upload",
+        });
+        return;
+      }
+
+      let imageBlob: Blob;
+
+      if (isCropMode && completedCrop) {
+        // Get the cropped image
+        imageBlob = await getCroppedImg();
+      } else {
+        // Use the full image if not cropped
+        const response = await fetch(uploadedImage);
+        imageBlob = await response.blob();
+      }
+
+      // Create a File from the Blob
+      const imageFile = new File([imageBlob], "profile_photo.jpg", {
+        type: "image/jpeg",
+      });
+
+      // Create a FormData to send to the server
+      const formData = new FormData();
+      formData.append("profile_picture", imageFile);
+
+      // Upload the image using standard post with FormData
+      const response = await patch("/auth/users/me/", formData);
+
+      // Update the user data in the auth context
+      updateUserData(response);
+
+      setNotification({
+        type: "success",
+        message: "Profile picture updated successfully!",
+      });
+
+      // Close the dialog and reset state
+      setIsPhotoDialogOpen(false);
+      setUploadedImage(null);
+      setIsCropMode(false);
+
+      setTimeout(() => setNotification(null), 3000);
+    } catch (err) {
+      setNotification({
+        type: "error",
+        message: "Failed to update profile picture. Please try again.",
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleCancelUpload = () => {
+    setIsPhotoDialogOpen(false);
+    setUploadedImage(null);
+    setIsCropMode(false);
+  };
+
+  const toggleCropMode = () => {
+    setIsCropMode(!isCropMode);
+  };
+
+  if (loading || authLoading) {
     return (
       <DashboardLayout>
         <Loader />
@@ -188,7 +395,11 @@ export function ProfilePage() {
                       {getInitials()}
                     </AvatarFallback>
                   </Avatar>
-                  <Button variant="outline" className="w-full">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => setIsPhotoDialogOpen(true)}
+                  >
                     <Upload className="mr-2 h-4 w-4" />
                     Change Photo
                   </Button>
@@ -416,6 +627,132 @@ export function ProfilePage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Profile Photo Upload Dialog */}
+      <Dialog open={isPhotoDialogOpen} onOpenChange={setIsPhotoDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Update Profile Picture</DialogTitle>
+            <DialogDescription>
+              Upload a new profile picture. You can drag and drop an image or
+              browse your files.
+            </DialogDescription>
+          </DialogHeader>
+
+          {!uploadedImage ? (
+            <div
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer ${
+                isDragging ? "border-primary bg-primary/5" : "border-gray-300"
+              }`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={triggerFileInput}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileInputChange}
+              />
+              <Upload className="h-12 w-12 mx-auto text-gray-400 mb-2" />
+              <p className="text-sm text-gray-600">
+                Drag and drop your image here, or click to browse
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Supports: JPG, PNG, GIF (Max size: 5MB)
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <div className="relative w-full">
+                {isCropMode ? (
+                  <ReactCrop
+                    crop={crop}
+                    onChange={(c) => setCrop(c)}
+                    onComplete={(c) => setCompletedCrop(c)}
+                    circularCrop
+                    aspect={1 / 1}
+                  >
+                    <img
+                      ref={imgRef}
+                      src={uploadedImage}
+                      alt="Profile"
+                      className="max-h-64 mx-auto"
+                    />
+                  </ReactCrop>
+                ) : (
+                  <img
+                    ref={imgRef}
+                    src={uploadedImage}
+                    alt="Profile"
+                    className="max-h-64 mx-auto"
+                  />
+                )}
+              </div>
+
+              <div className="flex items-center justify-center gap-2 mt-4">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={isCropMode ? "default" : "outline"}
+                        size="sm"
+                        onClick={toggleCropMode}
+                      >
+                        <CropIcon className="h-4 w-4 mr-1" />
+                        {isCropMode ? "Finish Crop" : "Crop Image"}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        {isCropMode
+                          ? "Apply crop settings"
+                          : "Crop your image to fit"}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setUploadedImage(null);
+                    setIsCropMode(false);
+                  }}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex justify-between sm:justify-between">
+            <Button variant="ghost" onClick={handleCancelUpload}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveImage}
+              disabled={!uploadedImage || isUploading}
+            >
+              {isUploading ? (
+                <>
+                  <Loader />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Save Photo
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

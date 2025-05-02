@@ -29,7 +29,6 @@ export const Teams: React.FC = () => {
     const loadData = async () => {
       try {
         setIsLoading(true);
-        // Get current user info
         setCurrentUser(user);
 
         if (user?.business) {

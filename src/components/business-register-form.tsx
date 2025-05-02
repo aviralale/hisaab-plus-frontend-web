@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -282,6 +282,8 @@ export function BusinessCreationForm() {
               <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
               <AlertDescription>
                 Business created successfully! Redirecting to dashboard...
+                <br />
+                If it doesn't redirects <Link to="/dashboard">Click here</Link>
               </AlertDescription>
             </Alert>
           )}

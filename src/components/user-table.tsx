@@ -26,7 +26,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal, User as UserIcon } from "lucide-react";
 import { User } from "../types";
-import { formatDate } from "date-fns";
+// Import your custom formatDate function instead of date-fns
+import { formatDate } from "@/lib/format-date"; // Adjust the path as needed
 import { EditUserForm } from "./edit-user-form";
 
 interface UserTableProps {
@@ -107,9 +108,7 @@ export const UserTable: React.FC<UserTableProps> = ({ users }) => {
                     {user.role_display || user.role}
                   </Badge>
                 </TableCell>
-                <TableCell>
-                  {formatDate(user.date_joined, "yyyy-MM-dd")}
-                </TableCell>
+                <TableCell>{formatDate(user.date_joined)}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

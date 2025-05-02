@@ -51,6 +51,29 @@ export interface RotatingTextProps
   elementLevelClassName?: string;
 }
 
+// Add TypeScript declaration for Intl.Segmenter if it doesn't exist
+declare global {
+  namespace Intl {
+    interface SegmentOptions {
+      granularity: "grapheme" | "word" | "sentence";
+    }
+
+    interface Segment {
+      segment: string;
+      index: number;
+      input: string;
+      isWordLike?: boolean;
+    }
+
+    interface SegmentIterator extends IterableIterator<Segment> {}
+
+    class Segmenter {
+      constructor(locale: string | string[], options?: SegmentOptions);
+      segment(input: string): SegmentIterator;
+    }
+  }
+}
+
 const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
   (
     {
@@ -73,17 +96,25 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
       elementLevelClassName,
       ...rest
     },
-    ref,
+    ref
   ) => {
     const [currentTextIndex, setCurrentTextIndex] = useState<number>(0);
 
     const splitIntoCharacters = (text: string): string[] => {
-      if (typeof Intl !== "undefined" && Intl.Segmenter) {
-        const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
-        return Array.from(
-          segmenter.segment(text),
-          (segment) => segment.segment,
-        );
+      if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+        try {
+          // @ts-ignore - Intl.Segmenter might not be fully typed in all TS versions
+          const segmenter = new Intl.Segmenter("en", {
+            granularity: "grapheme",
+          });
+          return Array.from(
+            segmenter.segment(text),
+            (segment) => segment.segment
+          );
+        } catch (e) {
+          // Fallback to simple Array.from if Segmenter fails
+          return Array.from(text);
+        }
       }
       return Array.from(text);
     };
@@ -130,9 +161,12 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
           const randomIndex = Math.floor(Math.random() * total);
           return Math.abs(randomIndex - index) * staggerDuration;
         }
-        return Math.abs((staggerFrom as number) - index) * staggerDuration;
+        if (typeof staggerFrom === "number") {
+          return Math.abs(staggerFrom - index) * staggerDuration;
+        }
+        return index * staggerDuration; // Default to "first" behavior
       },
-      [staggerFrom, staggerDuration],
+      [staggerFrom, staggerDuration]
     );
 
     const handleIndexChange = useCallback(
@@ -140,7 +174,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
         setCurrentTextIndex(newIndex);
         if (onNext) onNext(newIndex);
       },
-      [onNext],
+      [onNext]
     );
 
     const next = useCallback(() => {
@@ -174,7 +208,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
           handleIndexChange(validIndex);
         }
       },
-      [texts.length, currentTextIndex, handleIndexChange],
+      [texts.length, currentTextIndex, handleIndexChange]
     );
 
     const reset = useCallback(() => {
@@ -191,7 +225,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
         jumpTo,
         reset,
       }),
-      [next, previous, jumpTo, reset],
+      [next, previous, jumpTo, reset]
     );
 
     useEffect(() => {
@@ -204,7 +238,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
       <motion.span
         className={cn(
           "flex flex-wrap whitespace-pre-wrap relative",
-          mainClassName,
+          mainClassName
         )}
         {...rest}
         layout
@@ -220,7 +254,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
             className={cn(
               splitBy === "lines"
                 ? "flex flex-col w-full"
-                : "flex flex-wrap whitespace-pre-wrap relative",
+                : "flex flex-wrap whitespace-pre-wrap relative"
             )}
             layout
             aria-hidden="true"
@@ -246,8 +280,8 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
                           previousCharsCount + charIndex,
                           array.reduce(
                             (sum, word) => sum + word.characters.length,
-                            0,
-                          ),
+                            0
+                          )
                         ),
                       }}
                       className={cn("inline-block", elementLevelClassName)}
@@ -265,7 +299,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
         </AnimatePresence>
       </motion.span>
     );
-  },
+  }
 );
 
 RotatingText.displayName = "RotatingText";

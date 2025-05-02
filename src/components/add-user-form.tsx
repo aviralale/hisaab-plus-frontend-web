@@ -36,11 +36,11 @@ const formSchema = z
     password: z
       .string()
       .min(8, { message: "Password must be at least 8 characters" }),
-    confirmPassword: z.string(),
+    re_password: z.string(),
   })
-  .refine((data) => data.password === data.confirmPassword, {
+  .refine((data) => data.password === data.re_password, {
     message: "Passwords don't match",
-    path: ["confirmPassword"],
+    path: ["re_password"],
   });
 
 interface AddUserFormProps {
@@ -62,43 +62,77 @@ export const AddUserForm: React.FC<AddUserFormProps> = ({
       phone: "",
       role: "staff",
       password: "",
-      confirmPassword: "",
+      re_password: "",
     },
   });
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (isSubmitting) return; // Prevent multiple submissions
+
     try {
       setIsSubmitting(true);
 
-      // Remove confirmPassword as it's not needed in the API
-      const { confirmPassword, ...userData } = values;
-
-      // Add businessId to the user data
+      // Include all values including re_password
       const newUserData = {
-        ...userData,
+        ...values,
         business: businessId,
       };
 
-      const newUser = await createUser(newUserData);
+      // Call API with proper error handling
+      const newUser = await createUser(newUserData).catch((error) => {
+        console.error("API Error:", error);
+        throw error; // Re-throw to be caught by the outer catch
+      });
 
-      toast.success(
-        `User created! ${values.full_name} has been added to your business`
-      );
+      // Only proceed if we have a valid response
+      if (newUser) {
+        toast.success(
+          `User created! ${values.full_name} has been added to your business`
+        );
 
-      form.reset();
-      onUserAdded(newUser);
+        // Reset form after successful submission
+        form.reset({
+          email: "",
+          full_name: "",
+          phone: "",
+          role: "staff",
+          password: "",
+          re_password: "",
+        });
+
+        // Notify parent component
+        onUserAdded(newUser);
+      }
     } catch (err) {
       console.error("Error creating user:", err);
       toast.error("Failed to create user. Please try again.");
+
+      // Don't reset the form on error so user can fix and retry
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Handle form submission errors
+  const handleError = (errors: any) => {
+    console.error("Form validation errors:", errors);
+
+    // Show a toast with the first error message
+    const firstError = Object.values(errors)[0] as { message: string };
+    if (firstError?.message) {
+      toast.error(firstError.message);
+    } else {
+      toast.error("Please fix the form errors");
     }
   };
 
   return (
     <Card className="p-6">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form
+          onSubmit={form.handleSubmit(onSubmit, handleError)}
+          className="space-y-6"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField
               control={form.control}
@@ -194,7 +228,7 @@ export const AddUserForm: React.FC<AddUserFormProps> = ({
 
             <FormField
               control={form.control}
-              name="confirmPassword"
+              name="re_password"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Confirm Password</FormLabel>
@@ -208,7 +242,7 @@ export const AddUserForm: React.FC<AddUserFormProps> = ({
           </div>
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} className="px-6">
               {isSubmitting ? "Creating User..." : "Create User"}
             </Button>
           </div>

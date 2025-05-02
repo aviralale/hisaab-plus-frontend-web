@@ -1,4 +1,5 @@
 // src/contexts/AuthContext.tsx
+
 import {
   createContext,
   useContext,
@@ -18,6 +19,8 @@ interface AuthContextType {
   hasBusiness: boolean;
   login: (credentials: LoginUser) => Promise<boolean>;
   logout: () => void;
+  updateUserData: (userData: User) => void;
+  fetchUserData: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -39,51 +42,43 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [hasBusiness, setHasBusiness] = useState<boolean>(false);
+
   const navigate = useNavigate();
   const location = useLocation();
 
-  const fetchUserData = async () => {
+  const fetchUserData = async (): Promise<boolean> => {
     try {
-      console.log("Fetching user data...");
-      console.log("Current token:", localStorage.getItem("access"));
-
       const response = await axiosInstance.get("/auth/users/me/");
-      console.log("User data received:", response.data);
+      const userData = response.data;
 
-      setUser(response.data);
-      setHasBusiness(response.data.business);
+      setUser(userData);
+      setHasBusiness(!!userData.business);
       setIsAuthenticated(true);
+
       return true;
     } catch (error) {
       console.error("Failed to fetch user data:", error);
-
+      setUser(null);
+      setHasBusiness(false);
+      setIsAuthenticated(false);
       return false;
     }
   };
 
   const checkAuthStatus = async () => {
     setLoading(true);
-    const token = localStorage.getItem("access");
 
+    const token = localStorage.getItem("access");
     if (token) {
-      try {
-        const success = await fetchUserData();
-        if (!success) {
-          localStorage.removeItem("access");
-          localStorage.removeItem("refresh");
-          setIsAuthenticated(false);
-          setUser(null);
-        }
-      } catch (error) {
-        console.error("Error during authentication check:", error);
+      const success = await fetchUserData();
+      if (!success) {
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
-        setIsAuthenticated(false);
-        setUser(null);
       }
     } else {
-      setIsAuthenticated(false);
       setUser(null);
+      setIsAuthenticated(false);
+      setHasBusiness(false);
     }
 
     setLoading(false);
@@ -92,33 +87,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     checkAuthStatus();
   }, []);
+
   const login = async (credentials: LoginUser): Promise<boolean> => {
     setLoading(true);
+
     try {
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
 
       const data = await loginUser(credentials);
-
-      if (!data || !data.access) {
-        toast.error("Login failed. No authentication token received.");
+      if (!data?.access) {
+        toast.error("Login failed: No access token received.");
         setLoading(false);
         return false;
       }
-      await new Promise((resolve) => setTimeout(resolve, 100));
 
-      const success = await fetchUserData();
-
-      if (!success) {
-        toast.error("Failed to retrieve user information.");
-        setLoading(false);
-        return false;
-      }
+      await fetchUserData();
 
       toast.success("Login successful!");
 
-      const origin = location.state?.from?.pathname || "/dashboard";
-      navigate(origin);
+      const redirectPath = location.state?.from?.pathname || "/dashboard";
+      navigate(redirectPath);
 
       setLoading(false);
       return true;
@@ -131,14 +120,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       return false;
     }
   };
+
   const logout = () => {
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
-    localStorage.removeItem("email");
     setUser(null);
     setIsAuthenticated(false);
+    setHasBusiness(false);
+    toast.success("Logged out successfully.");
     navigate("/");
-    toast.success("Logged out successfully");
+  };
+
+  const updateUserData = (userData: User) => {
+    setUser(userData);
+    setHasBusiness(!!userData.business);
   };
 
   const value: AuthContextType = {
@@ -148,6 +143,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     hasBusiness,
     login,
     logout,
+    updateUserData,
+    fetchUserData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

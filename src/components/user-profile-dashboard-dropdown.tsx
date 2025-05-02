@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -22,12 +21,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 export function UserProfileDashboardDropdown() {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
@@ -65,27 +62,7 @@ export function UserProfileDashboardDropdown() {
         </DropdownMenuTrigger>
         <DropdownMenuContent className="w-56">
           <DropdownMenuLabel>My Account</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => navigate("/profile")}>
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/billing")}>
-              Billing
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => navigate("/profile-settings")}>
-              Settings
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            {user?.role === "owner" && (
-              <DropdownMenuItem onClick={() => navigate("/team")}>
-                Team
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
+
           <DropdownMenuItem>Support</DropdownMenuItem>
           <DropdownMenuSeparator />
           <AlertDialog>

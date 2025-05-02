@@ -14,8 +14,18 @@ export const fetchBusinessUsers = async (
 };
 
 export const createUser = async (userData: any): Promise<User> => {
-  const response = await axiosInstance.post("auth/users/", userData);
-  return response.data;
+  try {
+    console.log("Sending user data:", userData);
+    const response = await axiosInstance.post(
+      "create-business-user/",
+      userData
+    );
+    console.log("Received response:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("Error creating user:", error.response?.data || error);
+    throw error;
+  }
 };
 
 export const updateUser = async (
