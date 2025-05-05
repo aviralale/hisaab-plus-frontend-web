@@ -22,9 +22,6 @@ const ProtectedBusinessRoute = ({ children }: ProtectedRouteProps) => {
       <Navigate to="/create-business" state={{ from: location }} replace />
     );
   }
-  if (hasBusiness) {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   return <>{children}</>;
 };

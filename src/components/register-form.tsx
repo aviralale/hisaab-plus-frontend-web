@@ -121,14 +121,14 @@ export function RegisterForm({
       console.log("Form submitted with:", data);
       setRegistrationSuccess(true);
       setTimeout(() => {
-        navigate("/login", {
+        navigate("/registration-success", {
           state: {
             message:
-              "Registration successful! Please sign in with your credentials.",
+              "Registration successful! Please check your mail for activating your account.",
           },
         });
         toast.success(
-          "Registration successful! Please sign in with your credentials."
+          "Registration successful! Please check your mail for activating your account."
         );
       }, 2000);
     } catch (error) {

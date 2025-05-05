@@ -1,5 +1,4 @@
 // src/contexts/AuthContext.tsx
-
 import {
   createContext,
   useContext,
@@ -20,7 +19,6 @@ interface AuthContextType {
   login: (credentials: LoginUser) => Promise<boolean>;
   logout: () => void;
   updateUserData: (userData: User) => void;
-  fetchUserData: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -42,43 +40,51 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [hasBusiness, setHasBusiness] = useState<boolean>(false);
-
   const navigate = useNavigate();
   const location = useLocation();
 
-  const fetchUserData = async (): Promise<boolean> => {
+  const fetchUserData = async () => {
     try {
+      console.log("Fetching user data...");
+      console.log("Current token:", localStorage.getItem("access"));
+
       const response = await axiosInstance.get("/auth/users/me/");
-      const userData = response.data;
+      console.log("User data received:", response.data);
 
-      setUser(userData);
-      setHasBusiness(!!userData.business);
+      setUser(response.data);
+      setHasBusiness(response.data.business);
       setIsAuthenticated(true);
-
       return true;
     } catch (error) {
       console.error("Failed to fetch user data:", error);
-      setUser(null);
-      setHasBusiness(false);
-      setIsAuthenticated(false);
+
       return false;
     }
   };
 
   const checkAuthStatus = async () => {
     setLoading(true);
-
     const token = localStorage.getItem("access");
+
     if (token) {
-      const success = await fetchUserData();
-      if (!success) {
+      try {
+        const success = await fetchUserData();
+        if (!success) {
+          localStorage.removeItem("access");
+          localStorage.removeItem("refresh");
+          setIsAuthenticated(false);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error("Error during authentication check:", error);
         localStorage.removeItem("access");
         localStorage.removeItem("refresh");
+        setIsAuthenticated(false);
+        setUser(null);
       }
     } else {
-      setUser(null);
       setIsAuthenticated(false);
-      setHasBusiness(false);
+      setUser(null);
     }
 
     setLoading(false);
@@ -90,24 +96,31 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const login = async (credentials: LoginUser): Promise<boolean> => {
     setLoading(true);
-
     try {
       localStorage.removeItem("access");
       localStorage.removeItem("refresh");
 
       const data = await loginUser(credentials);
-      if (!data?.access) {
-        toast.error("Login failed: No access token received.");
+
+      if (!data || !data.access) {
+        toast.error("Login failed. No authentication token received.");
+        setLoading(false);
+        return false;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const success = await fetchUserData();
+
+      if (!success) {
+        toast.error("Failed to retrieve user information.");
         setLoading(false);
         return false;
       }
 
-      await fetchUserData();
-
       toast.success("Login successful!");
 
-      const redirectPath = location.state?.from?.pathname || "/dashboard";
-      navigate(redirectPath);
+      const origin = location.state?.from?.pathname || "/dashboard";
+      navigate(origin);
 
       setLoading(false);
       return true;
@@ -124,13 +137,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = () => {
     localStorage.removeItem("access");
     localStorage.removeItem("refresh");
+    localStorage.removeItem("email");
     setUser(null);
     setIsAuthenticated(false);
-    setHasBusiness(false);
-    toast.success("Logged out successfully.");
     navigate("/");
+    toast.success("Logged out successfully");
   };
 
+  // Add the updateUserData function
   const updateUserData = (userData: User) => {
     setUser(userData);
     setHasBusiness(!!userData.business);
@@ -144,7 +158,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     login,
     logout,
     updateUserData,
-    fetchUserData,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

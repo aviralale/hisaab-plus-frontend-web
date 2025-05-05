@@ -42,11 +42,13 @@ import {
 } from "@/components/ui/card";
 import { CategoriesResponse } from "@/types";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Category {
   id: number;
   name: string;
   description: string;
+  business?: number;
 }
 
 export default function CategoriesPage() {
@@ -57,9 +59,13 @@ export default function CategoriesPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
+  const { user } = useAuth();
+
+  // Initialize newCategory with the business ID from user context
   const [newCategory, setNewCategory] = useState({
     name: "",
     description: "",
+    business: user?.business_details?.id ?? null,
   });
 
   const { get, post, put, delete: remove } = useApi();
@@ -67,6 +73,16 @@ export default function CategoriesPage() {
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  // Update newCategory business ID when user data changes
+  useEffect(() => {
+    if (user && user.business_details && user.business_details.id) {
+      setNewCategory((prev) => ({
+        ...prev,
+        business: user?.business_details?.id ?? null,
+      }));
+    }
+  }, [user]);
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -86,13 +102,25 @@ export default function CategoriesPage() {
   );
 
   const resetNewCategoryForm = () => {
-    setNewCategory({ name: "", description: "" });
+    setNewCategory({
+      name: "",
+      description: "",
+      business: user?.business_details?.id ?? null,
+    });
   };
 
   const handleCreateCategory = async () => {
     try {
       if (!newCategory.name.trim()) {
         toast.error("Category name is required");
+        return;
+      }
+
+      // Ensure business ID is set
+      if (!newCategory.business) {
+        toast.error(
+          "Business ID is missing. Please try again or contact support."
+        );
         return;
       }
 
@@ -115,6 +143,16 @@ export default function CategoriesPage() {
       if (!currentCategory.name.trim()) {
         toast.error("Category name is required");
         return;
+      }
+
+      // Ensure business ID is set for the update
+      if (
+        !currentCategory.business &&
+        user &&
+        user.business_details &&
+        user.business_details.id
+      ) {
+        currentCategory.business = user.business_details.id;
       }
 
       const updatedCategory = await put<Category>(
