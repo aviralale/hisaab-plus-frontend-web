@@ -278,7 +278,7 @@ export function BusinessCreationForm() {
         <CardContent>
           {/* Success Alert */}
           {success && (
-            <Alert className="mb-6 border-green-500 bg-green-50 text-green-800">
+            <Alert className="mb-6 border-green-500 text-green-800">
               <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
               <AlertDescription>
                 Business created successfully! Redirecting to dashboard...

@@ -4,16 +4,13 @@ import {
   PlusCircle,
   Search,
   SlidersHorizontal,
-  Edit,
   Trash2,
-  Eye,
   Package,
-  PercentIcon,
   Banknote,
   X,
-  ChevronUp,
-  ChevronDown,
-  ArrowUpRightFromCircle,
+  TrendingUp,
+  // ChevronUp,
+  // ChevronDown,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -60,12 +57,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Checkbox } from "@/components/ui/checkbox";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { useApi } from "@/contexts/ApiContext";
-import { Product, CategoriesResponse, SuppliersResponse } from "@/types";
+import { CategoriesResponse, SuppliersResponse } from "@/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { Product, StockBatch } from "@/types/product";
 
 type StockStatusFilter = "in-stock" | "low-stock" | "out-of-stock" | null;
 type SortDirection = "asc" | "desc";
@@ -330,29 +327,29 @@ const ProductsPage = () => {
     setCurrentPage(1);
   };
 
-  const handleSort = (field: string) => {
-    // If clicking the current sort field, toggle direction
-    if (field === sortField) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      // If new field, default to ascending
-      setSortField(field);
-      setSortDirection("asc");
-    }
-  };
+  // const handleSort = (field: string) => {
+  //   // If clicking the current sort field, toggle direction
+  //   if (field === sortField) {
+  //     setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+  //   } else {
+  //     // If new field, default to ascending
+  //     setSortField(field);
+  //     setSortDirection("asc");
+  //   }
+  // };
 
-  const getSortIcon = (field: string) => {
-    if (field !== sortField) return null;
-    return sortDirection === "asc" ? (
-      <ChevronUp className="h-4 w-4 ml-1" />
-    ) : (
-      <ChevronDown className="h-4 w-4 ml-1" />
-    );
-  };
+  // const getSortIcon = (field: string) => {
+  //   if (field !== sortField) return null;
+  //   return sortDirection === "asc" ? (
+  //     <ChevronUp className="h-4 w-4 ml-1" />
+  //   ) : (
+  //     <ChevronDown className="h-4 w-4 ml-1" />
+  //   );
+  // };
 
-  const handleEdit = (id: number) => {
-    navigate(`/products/edit/${id}`);
-  };
+  // const handleEdit = (id: number) => {
+  //   navigate(`/products/edit/${id}`);
+  // };
 
   const handleDelete = (id: number) => {
     setSelectedProduct(id);
@@ -405,22 +402,22 @@ const ProductsPage = () => {
   };
 
   // Handle select all checkbox
-  const toggleSelectAll = () => {
-    if (selectedItems.length === filteredProducts.length) {
-      setSelectedItems([]);
-    } else {
-      setSelectedItems(filteredProducts.map((product) => product.id));
-    }
-  };
+  // const toggleSelectAll = () => {
+  //   if (selectedItems.length === filteredProducts.length) {
+  //     setSelectedItems([]);
+  //   } else {
+  //     setSelectedItems(filteredProducts.map((product) => product.id));
+  //   }
+  // };
 
-  // Handle individual row selection
-  const toggleSelectItem = (id: number) => {
-    if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter((itemId) => itemId !== id));
-    } else {
-      setSelectedItems([...selectedItems, id]);
-    }
-  };
+  // // Handle individual row selection
+  // const toggleSelectItem = (id: number) => {
+  //   if (selectedItems.includes(id)) {
+  //     setSelectedItems(selectedItems.filter((itemId) => itemId !== id));
+  //   } else {
+  //     setSelectedItems([...selectedItems, id]);
+  //   }
+  // };
 
   // Additional function for bulk delete
   const confirmBulkDelete = async () => {
@@ -528,20 +525,6 @@ const ProductsPage = () => {
     return items;
   };
 
-  // Calculate stats for cards
-  const totalProductCount = totalItems;
-  const totalValue = filteredProducts.reduce(
-    (total, product) => total + product.selling_price * product.stock,
-    0
-  );
-  const averageProfit =
-    filteredProducts.length > 0
-      ? filteredProducts.reduce(
-          (sum, product) => sum + (product.profit_margin || 0),
-          0
-        ) / filteredProducts.length
-      : 0;
-
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -549,6 +532,22 @@ const ProductsPage = () => {
       currency: "NPR",
       maximumFractionDigits: 2,
     }).format(amount);
+  };
+
+  // Update the average profit calculation
+  const calculateAverageProfit = (products: Product[]): number => {
+    if (products.length === 0) return 0;
+
+    const totalProfit = products.reduce((sum, product) => {
+      const batchProfits = product.stock_batches.reduce(
+        (batchSum: number, batch: StockBatch): number =>
+          batchSum + batch.profit_per_unit,
+        0
+      );
+      return sum + batchProfits / (product.stock_batches.length || 1);
+    }, 0);
+
+    return totalProfit / products.length;
   };
 
   return (
@@ -578,46 +577,81 @@ const ProductsPage = () => {
         </div>
 
         {/* Stats Card Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="overflow-hidden">
-            <CardHeader className="pb-2 ">
-              <CardTitle className="text-sm font-medium ">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
                 Total Products
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="flex items-center">
                 <Package className="h-5 w-5 text-blue-600 mr-2" />
-                <div className="text-2xl font-bold">{totalProductCount}</div>
+                <div className="text-2xl font-bold">{totalItems}</div>
               </div>
             </CardContent>
           </Card>
+
           <Card className="overflow-hidden">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium ">
-                Total Inventory Value
+              <CardTitle className="text-sm font-medium">
+                Total Stock Value
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="flex items-center">
                 <Banknote className="h-5 w-5 text-emerald-600 mr-2" />
                 <div className="text-2xl font-bold">
-                  {formatCurrency(totalValue)}
+                  {formatCurrency(
+                    filteredProducts.reduce(
+                      (sum, p) => sum + p.total_stock_value,
+                      0
+                    )
+                  )}
                 </div>
               </div>
             </CardContent>
           </Card>
+
           <Card className="overflow-hidden">
-            <CardHeader className="pb-2 ">
-              <CardTitle className="text-sm font-medium ">
-                Average Profit Margin
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Average Profit/Unit
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4">
               <div className="flex items-center">
-                <PercentIcon className="h-5 w-5 text-purple-600 mr-2" />
+                <TrendingUp className="h-5 w-5 text-purple-600 mr-2" />
                 <div className="text-2xl font-bold">
-                  {averageProfit.toFixed(2)}%
+                  {formatCurrency(calculateAverageProfit(filteredProducts))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Stock Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">
+                    Out of Stock
+                  </span>
+                  <span className="text-xl font-bold text-red-600">
+                    {filteredProducts.filter((p) => p.stock === 0).length}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm text-muted-foreground">
+                    Low Stock
+                  </span>
+                  <span className="text-xl font-bold text-yellow-600">
+                    {filteredProducts.filter((p) => p.needs_reorder).length}
+                  </span>
                 </div>
               </div>
             </CardContent>
@@ -820,291 +854,92 @@ const ProductsPage = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/50 sticky top-0">
+                <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[50px] pl-4">
-                      <Checkbox
-                        checked={
-                          selectedItems.length === filteredProducts.length &&
-                          filteredProducts.length > 0
-                        }
-                        onCheckedChange={toggleSelectAll}
-                        aria-label="Select all products"
-                      />
-                    </TableHead>
-                    <TableHead
-                      className="w-[250px] cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("name")}
-                    >
-                      <div className="flex items-center">
-                        Product {getSortIcon("name")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("sku")}
-                    >
-                      <div className="flex items-center">
-                        SKU {getSortIcon("sku")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("category_name")}
-                    >
-                      <div className="flex items-center">
-                        Category {getSortIcon("category_name")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("supplier_name")}
-                    >
-                      <div className="flex items-center">
-                        Supplier {getSortIcon("supplier_name")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("stock")}
-                    >
-                      <div className="flex items-center">
-                        Stock {getSortIcon("stock")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("selling_price")}
-                    >
-                      <div className="flex items-center">
-                        Price {getSortIcon("selling_price")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("profit_margin")}
-                    >
-                      <div className="flex items-center">
-                        Profit {getSortIcon("profit_margin")}
-                      </div>
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:text-primary"
-                      onClick={() => handleSort("is_active")}
-                    >
-                      <div className="flex items-center">
-                        Status {getSortIcon("is_active")}
-                      </div>
-                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Stock</TableHead>
+                    <TableHead className="text-right">Cost Price</TableHead>
+                    <TableHead className="text-right">Selling Price</TableHead>
+                    <TableHead className="text-right">Stock Value</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-10">
-                        <div className="flex justify-center">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                        </div>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          Loading products...
-                        </p>
+                  {filteredProducts.map((product) => (
+                    <TableRow key={product.id}>
+                      <TableCell className="font-medium">
+                        {product.name}
                       </TableCell>
-                    </TableRow>
-                  ) : filteredProducts.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-10">
-                        <div className="flex flex-col items-center justify-center space-y-3">
-                          <Package className="h-10 w-10 text-muted-foreground opacity-50" />
-                          <p className="text-lg font-medium">
-                            No products found
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {searchTerm ||
-                            filterCategory ||
-                            filterSupplier ||
-                            filterStockStatus
-                              ? "Try changing your search or filter criteria"
-                              : "Add your first product to get started"}
-                          </p>
-                          {(searchTerm ||
-                            filterCategory ||
-                            filterSupplier ||
-                            filterStockStatus) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={resetFilters}
-                            >
-                              Clear filters
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredProducts.map((product, index) => (
-                      <TableRow
-                        key={product.id}
-                        className={`${
-                          selectedItems.includes(product.id)
-                            ? "bg-primary/5"
-                            : index % 2 === 0
-                            ? "bg-muted/30"
-                            : ""
-                        } hover:bg-primary/10 transition-colors`}
-                      >
-                        <TableCell className="pl-4">
-                          <Checkbox
-                            checked={selectedItems.includes(product.id)}
-                            onCheckedChange={() => toggleSelectItem(product.id)}
-                            aria-label={`Select ${product.name}`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center">
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    className="p-0 hover:bg-transparent text-left font-medium justify-start"
-                                    onClick={() =>
-                                      navigate(`/products/${product.id}`)
-                                    }
-                                  >
-                                    {product.name}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="right">
-                                  <p>Click to view details</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-
-                            <ArrowUpRightFromCircle className="h-3 w-3 ml-1 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {product.sku}
-                        </TableCell>
-                        <TableCell>{product.category_name}</TableCell>
-                        <TableCell>{product.supplier_name}</TableCell>
-                        <TableCell>
+                      <TableCell>{product.sku}</TableCell>
+                      <TableCell>{product.category_name}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="tabular-nums">{product.stock}</span>
                           {product.stock === 0 ? (
-                            <Badge
-                              variant="destructive"
-                              className="font-medium"
-                            >
+                            <Badge variant="destructive" className="ml-2">
                               Out of Stock
                             </Badge>
-                          ) : Boolean(product.needs_reorder) ? (
+                          ) : product.needs_reorder ? (
                             <Badge
-                              variant="outline"
-                              className="bg-yellow-50 text-yellow-800 border-yellow-300 font-medium"
+                              variant="secondary"
+                              className="ml-2 bg-yellow-100 text-yellow-800"
                             >
-                              Low ({product.stock})
+                              Low Stock
                             </Badge>
-                          ) : (
-                            <span className="font-medium">{product.stock}</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          {formatCurrency(product.selling_price)}
-                        </TableCell>
-                        <TableCell>
-                          <div
-                            className={`
-                              inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
-                            ${
-                              product.profit_margin || 0 > 15
-                                ? "bg-green-50 text-green-700"
-                                : product.profit_margin || 0 > 0
-                                ? "bg-blue-50 text-blue-700"
-                                : "bg-red-50 text-red-700"
-                            }
-                                `}
+                          ) : null}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(product.average_cost_price)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(product.selling_price)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(product.total_stock_value)}
+                      </TableCell>
+                      <TableCell>
+                        {product.is_active ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-green-50 text-green-700"
                           >
-                            {product.profit_margin?.toFixed(2)}%
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {product.is_active ? (
-                            <Badge
-                              variant="outline"
-                              className="bg-green-50 text-green-700 border-green-200"
-                            >
-                              Active
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="bg-gray-50 text-gray-700 border-gray-200"
-                            >
-                              Inactive
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right space-x-1">
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() =>
-                                    navigate(`/products/${product.id}`)
-                                  }
-                                >
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>View details</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8"
-                                  onClick={() => handleEdit(product.id)}
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Edit product</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                  onClick={() => handleDelete(product.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>Delete product</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                            Active
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="bg-gray-50 text-gray-700"
+                          >
+                            Inactive
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/products/${product.id}`)}
+                          >
+                            View Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              navigate(`/products/edit/${product.id}`)
+                            }
+                          >
+                            Edit
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>

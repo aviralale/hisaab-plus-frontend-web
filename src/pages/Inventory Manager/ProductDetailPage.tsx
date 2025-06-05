@@ -40,9 +40,10 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import DashboardLayout from "@/components/layouts/DashboardLayout";
 import { useApi } from "@/contexts/ApiContext";
-import { Product, SaleItem, StockEntry } from "@/types";
+import { SaleItem } from "@/types";
 import { toast } from "sonner";
 import Loader from "@/components/loader";
+import { Product, StockBatch } from "@/types/product";
 
 // Sub-components with proper TypeScript interfaces
 interface ProductImageProps {
@@ -92,13 +93,15 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product }) => (
       <CardTitle>Product Details</CardTitle>
     </CardHeader>
     <CardContent className="space-y-6">
-      {product.needs_reorder && (
+      {product.stock <= product.reorder_level && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4 mr-2" />
           <AlertTitle>Low Stock Alert</AlertTitle>
           <AlertDescription>
-            This product is below the reorder point ({product.reorder_level}).
-            Current stock: {product.stock}.
+            This product is below the reorder point ({product.reorder_level}{" "}
+            {product.unit}).
+            <br />
+            Current stock: {product.stock} {product.unit}.
           </AlertDescription>
         </Alert>
       )}
@@ -112,7 +115,7 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product }) => (
             </div>
             <div className="font-medium">
               NPR{" "}
-              {Number(product.cost_price).toLocaleString(undefined, {
+              {Number(product.average_cost_price).toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -123,17 +126,26 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product }) => (
             </div>
             <div className="font-medium">
               NPR{" "}
-              {Number(product.selling_price).toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {Number(product.suggested_selling_price).toLocaleString(
+                undefined,
+                {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                }
+              )}
             </div>
 
             <div className="flex items-center">
               <BarChart className="h-4 w-4 mr-2" /> Profit Margin
             </div>
             <div className="font-medium">
-              {product.profit_margin?.toFixed(2)}%
+              {(
+                ((product.suggested_selling_price -
+                  product.average_cost_price) /
+                  product.average_cost_price) *
+                100
+              ).toFixed(2)}
+              %
             </div>
           </div>
         </div>
@@ -146,19 +158,23 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product }) => (
             <div className="flex items-center">
               <Package className="h-4 w-4 mr-2" /> Current Stock
             </div>
-            <div className="font-medium">{product.stock}</div>
+            <div className="font-medium">
+              {product.stock} {product.unit}
+            </div>
 
             <div className="flex items-center">
               <Activity className="h-4 w-4 mr-2" /> Reorder Point
             </div>
-            <div className="font-medium">{product.reorder_level}</div>
+            <div className="font-medium">
+              {product.reorder_level} {product.unit}
+            </div>
 
             <div className="flex items-center">
               <DollarSign className="h-4 w-4 mr-2" /> Stock Value
             </div>
             <div className="font-medium">
               NPR{" "}
-              {product.stock_value?.toLocaleString(undefined, {
+              {product.total_stock_value.toLocaleString(undefined, {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -180,10 +196,10 @@ const ProductDetails: React.FC<ProductDetailsProps> = ({ product }) => (
 );
 
 interface StockHistoryTabProps {
-  stockEntries: StockEntry[];
+  stockBatches: StockBatch[];
 }
 
-const StockHistoryTab: React.FC<StockHistoryTabProps> = ({ stockEntries }) => (
+const StockHistoryTab: React.FC<StockHistoryTabProps> = ({ stockBatches }) => (
   <Card>
     <CardHeader>
       <CardTitle>Stock Movement History</CardTitle>
@@ -195,59 +211,67 @@ const StockHistoryTab: React.FC<StockHistoryTabProps> = ({ stockEntries }) => (
             <TableHead>Date</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Quantity</TableHead>
-            <TableHead>Unit Price</TableHead>
-            <TableHead>Notes</TableHead>
-            <TableHead>Added By</TableHead>
+            <TableHead>Cost/Unit</TableHead>
+            <TableHead>Selling Price</TableHead>
+            <TableHead>Profit/Unit</TableHead>
+            <TableHead>Total Value</TableHead>
+            <TableHead>Invoice</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {stockEntries.length > 0 ? (
-            stockEntries.map((entry) => (
-              <TableRow key={entry.id}>
+          {stockBatches.length > 0 ? (
+            stockBatches.map((batch) => (
+              <TableRow key={batch.batch_id}>
                 <TableCell>
-                  {new Date(entry.date_added).toLocaleDateString()}
+                  {new Date(batch.entry_date).toLocaleDateString()}
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={
-                      entry.entry_type === "purchase" ? "outline" : "secondary"
-                    }
+                    variant="outline"
                     className={
-                      entry.entry_type === "purchase"
+                      batch.entry_type === "purchase"
                         ? "bg-green-100 text-green-800"
-                        : entry.entry_type === "sale"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-orange-100 text-orange-800"
+                        : "bg-blue-100 text-blue-800"
                     }
                   >
-                    {entry.entry_type}
+                    {batch.entry_type}
                   </Badge>
                 </TableCell>
-                <TableCell
-                  className={
-                    entry.quantity < 0 ? "text-red-600" : "text-green-600"
-                  }
-                >
-                  {entry.quantity > 0 ? `+${entry.quantity}` : entry.quantity}
+                <TableCell>{batch.quantity_remaining}</TableCell>
+                <TableCell>
+                  NPR{" "}
+                  {Number(batch.cost_per_unit).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </TableCell>
                 <TableCell>
-                  {entry.unit_price
-                    ? `NPR ${Number(entry.unit_price).toLocaleString(
-                        undefined,
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        }
-                      )}`
-                    : "-"}
+                  NPR{" "}
+                  {Number(batch.selling_price).toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </TableCell>
-                <TableCell>{entry.notes || "-"}</TableCell>
-                <TableCell>{entry.created_by}</TableCell>
+                <TableCell className="text-green-600">
+                  NPR{" "}
+                  {batch.profit_per_unit.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </TableCell>
+                <TableCell>
+                  NPR{" "}
+                  {batch.total_batch_value.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </TableCell>
+                <TableCell>{batch.invoice_number || "-"}</TableCell>
               </TableRow>
             ))
           ) : (
             <TableRow>
-              <TableCell colSpan={6} className="text-center py-4">
+              <TableCell colSpan={8} className="text-center py-4">
                 No stock movement history available
               </TableCell>
             </TableRow>
@@ -315,7 +339,7 @@ const SalesHistoryTab: React.FC<SalesHistoryTabProps> = ({ salesHistory }) => (
 interface ProductData {
   product: Product | null;
   salesHistory: SaleItem[];
-  stockEntries: StockEntry[];
+  stockBatches: StockBatch[]; // Changed from stockEntries
 }
 
 const ProductDetailPage: React.FC = () => {
@@ -330,7 +354,7 @@ const ProductDetailPage: React.FC = () => {
   const [data, setData] = useState<ProductData>({
     product: null,
     salesHistory: [],
-    stockEntries: [],
+    stockBatches: [], // Changed from stockEntries
   });
 
   // Fetch all data in parallel
@@ -341,16 +365,15 @@ const ProductDetailPage: React.FC = () => {
     setError(null);
 
     try {
-      const [productData, salesData, stockData] = await Promise.all([
+      const [productData, salesData] = await Promise.all([
         get<Product>(`/products/${id}/`),
         get<SaleItem[]>(`/products/${id}/sales_history/`),
-        get<StockEntry[]>(`/products/${id}/stock_history/`),
       ]);
 
       setData({
         product: productData,
         salesHistory: salesData,
-        stockEntries: stockData,
+        stockBatches: productData.stock_batches, // Use stock_batches from product data
       });
     } catch (error) {
       console.error("Failed to fetch product data:", error);
@@ -404,7 +427,7 @@ const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const { product, salesHistory, stockEntries } = data;
+  const { product, salesHistory, stockBatches } = data;
 
   return (
     <DashboardLayout>
@@ -458,7 +481,7 @@ const ProductDetailPage: React.FC = () => {
             <TabsTrigger value="salesHistory">Sales History</TabsTrigger>
           </TabsList>
           <TabsContent value="stockHistory">
-            <StockHistoryTab stockEntries={stockEntries} />
+            <StockHistoryTab stockBatches={stockBatches} />
           </TabsContent>
           <TabsContent value="salesHistory">
             <SalesHistoryTab salesHistory={salesHistory} />

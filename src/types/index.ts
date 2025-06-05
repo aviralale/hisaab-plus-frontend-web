@@ -69,6 +69,7 @@ export interface Product {
   needs_reorder?: boolean;
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface SaleItem {
@@ -117,6 +118,7 @@ export interface StockEntry {
   quantity: number;
   entry_type: string;
   unit_price: string;
+  cost_price?: string;
   date_added: string;
   invoice_number: string;
   notes: string | null;

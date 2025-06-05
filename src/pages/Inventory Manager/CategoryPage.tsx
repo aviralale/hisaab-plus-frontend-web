@@ -60,29 +60,35 @@ export default function CategoriesPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [currentCategory, setCurrentCategory] = useState<Category | null>(null);
   const { user } = useAuth();
+  const [userBusinessId, setUserBusinessId] = useState<number | null>(null);
 
-  // Initialize newCategory with the business ID from user context
+  // New category state
   const [newCategory, setNewCategory] = useState({
     name: "",
     description: "",
-    business: user?.business_details?.id ?? null,
+    business: null as number | null,
   });
 
   const { get, post, put, delete: remove } = useApi();
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-
-  // Update newCategory business ID when user data changes
+  // Set business ID from user data
   useEffect(() => {
     if (user && user.business_details && user.business_details.id) {
+      const businessId = user.business_details.id;
+      setUserBusinessId(businessId);
+
+      // Update the new category business ID
       setNewCategory((prev) => ({
         ...prev,
-        business: user?.business_details?.id ?? null,
+        business: businessId,
       }));
     }
   }, [user]);
+
+  // Fetch categories data
+  useEffect(() => {
+    fetchCategories();
+  }, []);
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -105,7 +111,7 @@ export default function CategoriesPage() {
     setNewCategory({
       name: "",
       description: "",
-      business: user?.business_details?.id ?? null,
+      business: userBusinessId, // Always use the current business ID when resetting
     });
   };
 
@@ -116,17 +122,25 @@ export default function CategoriesPage() {
         return;
       }
 
-      // Ensure business ID is set
-      if (!newCategory.business) {
+      // Double check business ID is set before submission
+      if (!newCategory.business && userBusinessId) {
+        const categoryToCreate = {
+          ...newCategory,
+          business: userBusinessId,
+        };
+        const data = await post<Category>("/categories/", categoryToCreate);
+        setCategories([...categories, data]);
+      } else if (!newCategory.business) {
         toast.error(
           "Business ID is missing. Please try again or contact support."
         );
         return;
+      } else {
+        // Business ID is already set in newCategory
+        const data = await post<Category>("/categories/", newCategory);
+        setCategories([...categories, data]);
       }
 
-      const data = await post<Category>("/categories/", newCategory);
-
-      setCategories([...categories, data]);
       setIsCreateDialogOpen(false);
       resetNewCategoryForm();
       toast.success("Category created successfully");
@@ -145,19 +159,25 @@ export default function CategoriesPage() {
         return;
       }
 
+      // Create a copy of the current category to avoid direct state mutation
+      const categoryToUpdate = { ...currentCategory };
+
       // Ensure business ID is set for the update
-      if (
-        !currentCategory.business &&
-        user &&
-        user.business_details &&
-        user.business_details.id
-      ) {
-        currentCategory.business = user.business_details.id;
+      if (!categoryToUpdate.business && userBusinessId) {
+        categoryToUpdate.business = userBusinessId;
+      }
+
+      // Check if business ID is still missing
+      if (!categoryToUpdate.business) {
+        toast.error(
+          "Business ID is missing. Please try again or contact support."
+        );
+        return;
       }
 
       const updatedCategory = await put<Category>(
-        `/categories/${currentCategory.id}/`,
-        currentCategory
+        `/categories/${categoryToUpdate.id}/`,
+        categoryToUpdate
       );
 
       setCategories(
@@ -513,7 +533,7 @@ export default function CategoriesPage() {
                 Cancel
               </AlertDialogCancel>
               <AlertDialogAction
-                className="bg-red-600 text-white hover:bg-red-700"
+                className="bg-red-600 text-white hover:bg-red-700 "
                 onClick={handleDeleteCategory}
               >
                 Delete Category

@@ -8,6 +8,11 @@ import {
   Download,
   RefreshCw,
   Loader2,
+  TrendingUp,
+  RotateCcw,
+  Eye,
+  ChevronDown,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,7 +41,6 @@ import {
 } from "@/components/ui/select";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import DashboardLayout from "@/components/layouts/DashboardLayout";
 import Loader from "@/components/loader";
 import { useApi } from "@/contexts/ApiContext";
 import {
@@ -49,12 +53,20 @@ import { useAuth } from "@/contexts/AuthContext";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import DashboardLayout from "@/components/layouts/DashboardLayout";
 
 function StockEntriesPage() {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
@@ -63,23 +75,28 @@ function StockEntriesPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearchTerm, setProductSearchTerm] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [newStockEntry, setNewStockEntry] = useState({
     product: "",
     entry_type: "purchase",
     quantity: 1,
     unit_price: 0,
+    cost_price: 0,
+    actual_selling_price: 0,
     notes: "",
   });
   const [filter, setFilter] = useState<string>("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "entries">(
+    "overview"
+  );
 
-  // Pagination states for stock entries
+  // Pagination states
   const [stockEntriesPage, setStockEntriesPage] = useState(1);
   const [stockEntriesNextPage, setStockEntriesNextPage] = useState<
     string | null
   >(null);
   const [loadingMoreEntries, setLoadingMoreEntries] = useState(false);
-  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
 
   const { get, post } = useApi();
   const { user } = useAuth();
@@ -90,14 +107,31 @@ function StockEntriesPage() {
 
   // Filter products based on search term
   const filteredProducts = useMemo(() => {
-    if (!productSearchTerm.trim()) return products;
+    if (!productSearchTerm.trim()) return products.slice(0, 20); // Show only first 20 by default
 
-    return products.filter(
-      (product) =>
-        product.name.toLowerCase().includes(productSearchTerm.toLowerCase()) ||
-        product.sku?.toLowerCase().includes(productSearchTerm.toLowerCase())
-    );
+    return products
+      .filter(
+        (product) =>
+          product.name
+            .toLowerCase()
+            .includes(productSearchTerm.toLowerCase()) ||
+          product.sku?.toLowerCase().includes(productSearchTerm.toLowerCase())
+      )
+      .slice(0, 20);
   }, [products, productSearchTerm]);
+
+  // Quick entry products (most recent or frequently used)
+  const quickEntryProducts = useMemo(() => {
+    const recentProducts = products
+      .filter((product) => product.is_active)
+      .sort(
+        (a, b) =>
+          new Date(b.updated_at || b.created_at).getTime() -
+          new Date(a.updated_at || a.created_at).getTime()
+      )
+      .slice(0, 6);
+    return recentProducts;
+  }, [products]);
 
   const fetchStockEntries = async (page = 1, append = false) => {
     try {
@@ -123,35 +157,21 @@ function StockEntriesPage() {
     }
   };
 
-  const fetchProducts = async (page = 1, append = false) => {
+  const fetchProducts = async () => {
     try {
-      if (page === 1 && !append) setLoading(true);
-      if (page > 1) setLoadingMoreProducts(true);
-
-      const data = await get<ProductsResponse>(`/products/?page=${page}`);
-
-      if (append) {
-        setProducts((prev) => [...prev, ...data.results]);
-      } else {
-        setProducts(data.results);
-      }
-
-      // If there's a next page, automatically fetch it
-      if (data.next) {
-        await fetchProducts(page + 1, true);
-      }
+      const data = await get<ProductsResponse>(
+        "/products/?page_size=100&is_active=true"
+      );
+      setProducts(data.results);
     } catch (error) {
       toast.error("Failed to fetch products");
-    } finally {
-      if (page === 1 && !append) setLoading(false);
-      setLoadingMoreProducts(false);
     }
   };
 
   const refreshData = async () => {
     setRefreshing(true);
     setStockEntriesPage(1);
-    await Promise.all([fetchProducts(1, false), fetchStockEntries(1, false)]);
+    await Promise.all([fetchProducts(), fetchStockEntries(1, false)]);
     toast.success("Data refreshed successfully");
     setRefreshing(false);
   };
@@ -188,7 +208,7 @@ function StockEntriesPage() {
   }, [stockEntriesNextPage, stockEntriesPage, loadingMoreEntries]);
 
   useEffect(() => {
-    fetchProducts(1, false);
+    fetchProducts();
     fetchStockEntries(1, false);
   }, []);
 
@@ -216,12 +236,31 @@ function StockEntriesPage() {
     try {
       const stockEntryData = {
         product: parseInt(newStockEntry.product),
-        quantity: newStockEntry.quantity,
-        unit_price: newStockEntry.unit_price,
+        quantity: newStockEntry.quantity || 1,
+        unit_price: newStockEntry.unit_price || 0,
+        cost_price: newStockEntry.cost_price || 0,
+        actual_selling_price: newStockEntry.actual_selling_price || 0,
         entry_type: newStockEntry.entry_type,
-        notes: newStockEntry.notes,
+        notes: newStockEntry.notes || "",
         invoice_number: generateInvoiceNumber("stockEntry"),
       };
+      if (!newStockEntry.unit_price || newStockEntry.unit_price <= 0) {
+        toast.error("Unit price is required and must be greater than 0");
+        return;
+      }
+
+      if (!newStockEntry.cost_price || newStockEntry.cost_price <= 0) {
+        toast.error("Cost price is required and must be greater than 0");
+        return;
+      }
+
+      if (
+        !newStockEntry.actual_selling_price ||
+        newStockEntry.actual_selling_price <= 0
+      ) {
+        toast.error("Selling price is required and must be greater than 0");
+        return;
+      }
 
       const response = await post("/stock-entries/", stockEntryData);
 
@@ -233,22 +272,48 @@ function StockEntriesPage() {
       };
 
       setStockEntries((prev) => [newEntry, ...prev]);
-      toast.success("Stock entry created successfully");
-      setIsCreateDialogOpen(false);
-      setNewStockEntry({
-        product: "",
-        entry_type: "purchase",
-        quantity: 1,
-        unit_price: 0,
-        notes: "",
-      });
-      setProductSearchTerm("");
+      toast.success(
+        `${
+          newStockEntry.entry_type.charAt(0).toUpperCase() +
+          newStockEntry.entry_type.slice(1)
+        } entry created successfully`
+      );
+      resetForm();
     } catch (error) {
       console.error("Error creating stock entry:", error);
       toast.error(
         "Failed to create stock entry. Please check all required fields."
       );
     }
+  };
+
+  const resetForm = () => {
+    setIsCreateDialogOpen(false);
+    setNewStockEntry({
+      product: "",
+      entry_type: "purchase",
+      quantity: 1,
+      unit_price: 0,
+      cost_price: 0,
+      actual_selling_price: 0,
+      notes: "",
+    });
+    setProductSearchTerm("");
+    setSelectedProduct(null);
+  };
+
+  const handleQuickEntry = (product: Product, type: string) => {
+    setSelectedProduct(product);
+    setNewStockEntry({
+      product: product.id.toString(),
+      entry_type: type,
+      quantity: 1,
+      unit_price: product.cost_price || 0,
+      cost_price: product.cost_price || 0,
+      actual_selling_price: product.selling_price || 0,
+      notes: "",
+    });
+    setIsCreateDialogOpen(true);
   };
 
   const formatDate = (dateString: string) => {
@@ -267,21 +332,36 @@ function StockEntriesPage() {
     }).format(amount);
   };
 
-  const getEntryTypeColor = (type: string) => {
+  const getEntryTypeConfig = (type: string) => {
     switch (type) {
       case "purchase":
-        return "bg-green-100 text-green-800";
+        return {
+          color: "bg-green-100 text-green-800 border-green-200",
+          icon: TrendingUp,
+          label: "Purchase",
+        };
       case "return":
-        return "bg-amber-100 text-amber-800";
+        return {
+          color: "bg-amber-100 text-amber-800 border-amber-200",
+          icon: RotateCcw,
+          label: "Return",
+        };
       case "adjustment":
-        return "bg-blue-100 text-blue-800";
+        return {
+          color: "bg-blue-100 text-blue-800 border-blue-200",
+          icon: AlertCircle,
+          label: "Adjustment",
+        };
       default:
-        return "bg-gray-100 text-gray-800";
+        return {
+          color: "bg-gray-100 text-gray-800 border-gray-200",
+          icon: Package,
+          label: type,
+        };
     }
   };
 
   const handleExportCSV = () => {
-    // Create CSV content
     const headers = [
       "Date",
       "Stock ID",
@@ -308,8 +388,6 @@ function StockEntriesPage() {
     });
 
     const csvContent = csvRows.map((row) => row.join(",")).join("\n");
-
-    // Create blob and download
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -326,17 +404,14 @@ function StockEntriesPage() {
     toast.success("Stock entries exported successfully");
   };
 
-  // Calculate stats
-  const totalStockValue = filteredStockEntries.reduce(
-    (total, entry) => total + entry.quantity * parseFloat(entry.unit_price),
-    0
-  );
-
   const purchaseEntries = filteredStockEntries.filter(
     (entry) => entry.entry_type === "purchase"
   );
   const returnEntries = filteredStockEntries.filter(
     (entry) => entry.entry_type === "return"
+  );
+  const adjustmentEntries = filteredStockEntries.filter(
+    (entry) => entry.entry_type === "adjustment"
   );
 
   const totalPurchaseValue = purchaseEntries.reduce(
@@ -349,504 +424,723 @@ function StockEntriesPage() {
     0
   );
 
+  const recentEntries = stockEntries.slice(0, 5);
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div>
-          <h1 className="text-3xl font-bold">Stock Entries</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your inventory stock entries and purchases
-          </p>
-        </div>
-        <div className="flex gap-2 self-start">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-            onClick={refreshData}
-            disabled={refreshing}
-          >
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex items-center gap-2"
-            onClick={handleExportCSV}
-          >
-            <Download size={16} />
-            Export
-          </Button>
-          <Button
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Plus size={16} />
-            Add Entry
-          </Button>
-        </div>
-      </div>
-
-      {/* Stats Card Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Entries
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {filteredStockEntries.length}
+    <DashboardLayout>
+      <TooltipProvider>
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+            <div>
+              <h1 className="text-3xl font-bold">Stock Management</h1>
+              <p className="text-muted-foreground mt-1">
+                Track and manage your inventory movements
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {filter === "all"
-                ? "All entries"
-                : `Filtered to ${filter} entries`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Stock Value
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {formatCurrency(totalStockValue)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Net value of current inventory
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Purchase Value
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(totalPurchaseValue)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {purchaseEntries.length} purchase entries
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Return Value
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600">
-              {formatCurrency(totalReturnValue)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {returnEntries.length} return entries
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
-            size={18}
-          />
-          <Input
-            placeholder="Search by product, ID or notes..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-full"
-          />
-        </div>
-
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className="flex items-center gap-2 min-w-40"
-            >
-              <Filter size={16} />
-              {filter === "all"
-                ? "All Types"
-                : filter === "purchase"
-                ? "Purchases"
-                : filter === "return"
-                ? "Returns"
-                : "Adjustments"}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-40 p-0">
-            <div className="p-2">
-              <button
-                className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                  filter === "all"
-                    ? "bg-primary/10 font-medium"
-                    : "hover:bg-muted"
-                }`}
-                onClick={() => setFilter("all")}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={refreshData}
+                disabled={refreshing}
+                className="flex items-center gap-2"
               >
-                All Types
-              </button>
-              <button
-                className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                  filter === "purchase"
-                    ? "bg-primary/10 font-medium"
-                    : "hover:bg-muted"
-                }`}
-                onClick={() => setFilter("purchase")}
-              >
-                Purchases
-              </button>
-              <button
-                className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                  filter === "return"
-                    ? "bg-primary/10 font-medium"
-                    : "hover:bg-muted"
-                }`}
-                onClick={() => setFilter("return")}
-              >
-                Returns
-              </button>
-              <button
-                className={`w-full text-left px-2 py-1.5 rounded text-sm ${
-                  filter === "adjustment"
-                    ? "bg-primary/10 font-medium"
-                    : "hover:bg-muted"
-                }`}
-                onClick={() => setFilter("adjustment")}
-              >
-                Adjustments
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
-
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader />
-        </div>
-      ) : (
-        <Card className="overflow-hidden border-0 shadow-sm">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-muted/40">
-                <TableRow>
-                  <TableHead className="w-36">Date</TableHead>
-                  <TableHead className="w-40">Stock ID</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead className="text-right">Quantity</TableHead>
-                  <TableHead className="text-right">Unit Cost</TableHead>
-                  <TableHead className="text-right">Total Value</TableHead>
-                  <TableHead className="w-60">Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStockEntries.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="h-60 text-center">
-                      <div className="flex flex-col items-center justify-center text-muted-foreground p-4">
-                        <Package size={48} className="mb-2 opacity-40" />
-                        <p className="mb-1">No stock entries found</p>
-                        <p className="text-sm">
-                          {searchTerm || filter !== "all"
-                            ? "Try changing your search or filter criteria"
-                            : "Add your first stock entry to get started"}
-                        </p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredStockEntries.map((entry, index) => (
-                    <TableRow
-                      key={`${entry.id}-${entry.invoice_number || index}`}
-                    >
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Calendar
-                            size={16}
-                            className="text-muted-foreground"
-                          />
-                          {formatDate(entry.date_added)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <code className="bg-muted px-1 py-0.5 rounded text-xs">
-                            {entry.invoice_number}
-                          </code>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Package
-                            size={16}
-                            className="text-muted-foreground"
-                          />
-                          <span className="font-medium">
-                            {entry.product_name}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={`${getEntryTypeColor(
-                            entry.entry_type
-                          )} hover:${getEntryTypeColor(entry.entry_type)}`}
-                        >
-                          {entry.entry_type.charAt(0).toUpperCase() +
-                            entry.entry_type.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {entry.quantity}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {formatCurrency(parseFloat(entry.unit_price))}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(
-                          entry.quantity * parseFloat(entry.unit_price)
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate text-muted-foreground">
-                        {entry.notes || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-
-            {/* Infinite Scroll Loader */}
-            {stockEntriesNextPage && (
-              <div
-                ref={stockEntriesLoadMoreRef}
-                className="flex justify-center py-4"
-              >
-                {loadingMoreEntries ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 size={16} className="animate-spin" />
-                    <span>Loading more entries...</span>
-                  </div>
-                ) : (
+                <RefreshCw
+                  size={16}
+                  className={refreshing ? "animate-spin" : ""}
+                />
+                Refresh
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    onClick={() => {
-                      const nextPage = stockEntriesPage + 1;
-                      setStockEntriesPage(nextPage);
-                      fetchStockEntries(nextPage, true);
-                    }}
-                    className="text-muted-foreground hover:text-foreground"
+                    className="flex items-center gap-2"
                   >
-                    Load more entries
+                    <Download size={16} />
+                    Export
+                    <ChevronDown size={14} />
                   </Button>
-                )}
-              </div>
-            )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    Export as CSV
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="flex items-center gap-2"
+                size="sm"
+              >
+                <Plus size={16} />
+                New Entry
+              </Button>
+            </div>
           </div>
-        </Card>
-      )}
 
-      {/* Create Stock Entry Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add New Stock Entry</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleCreateStockEntry}>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="product">
-                  Product <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={newStockEntry.product}
-                  onValueChange={(value) => {
-                    const selectedProduct = products.find(
-                      (p) => p.id.toString() === value
-                    );
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="border-l-4 border-l-blue-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Package size={16} />
+                  Total Entries
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">
+                  {filteredStockEntries.length}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {filter === "all" ? "All entries" : `Filtered entries`}
+                </p>
+              </CardContent>
+            </Card>
 
-                    setNewStockEntry({
-                      ...newStockEntry,
-                      product: value,
-                      unit_price:
-                        selectedProduct?.cost_price || newStockEntry.unit_price,
-                    });
-                    setProductSearchTerm(""); // Clear search term when a product is selected
-                  }}
-                >
-                  <SelectTrigger id="product" className="w-full">
-                    <SelectValue placeholder="Select a product">
-                      {newStockEntry.product
-                        ? products.find(
-                            (p) => p.id.toString() === newStockEntry.product
-                          )?.name
-                        : "Select a product"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent className="max-h-60">
-                    <div className="px-2 py-2 top-0 bg-background border-b sticky">
-                      <Input
-                        placeholder="Search products..."
-                        className="h-8"
-                        value={productSearchTerm}
-                        onChange={(e) => setProductSearchTerm(e.target.value)}
-                        onFocus={(e) => e.stopPropagation()} // Prevent select from closing
-                      />
-                    </div>
+            <Card className="border-l-4 border-l-green-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <TrendingUp size={16} />
+                  Purchases
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(totalPurchaseValue)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {purchaseEntries.length} purchase entries
+                </p>
+              </CardContent>
+            </Card>
 
-                    {loadingMoreProducts ? (
-                      <div className="flex items-center justify-center py-4 text-muted-foreground">
-                        <Loader2 size={16} className="animate-spin mr-2" />
-                        <span>Loading products...</span>
-                      </div>
-                    ) : filteredProducts.length === 0 ? (
-                      <div className="text-center py-4 text-muted-foreground">
-                        {productSearchTerm
-                          ? "No matching products found"
-                          : "No products available"}
-                      </div>
-                    ) : (
-                      filteredProducts.map((product) => (
-                        <SelectItem
-                          key={`product-${product.id}`}
-                          value={product.id.toString()}
-                          className="cursor-pointer"
+            <Card className="border-l-4 border-l-amber-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <RotateCcw size={16} />
+                  Returns
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-amber-600">
+                  {formatCurrency(totalReturnValue)}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {returnEntries.length} return entries
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <AlertCircle size={16} />
+                  Adjustments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-purple-600">
+                  {adjustmentEntries.length}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Stock adjustments
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex border-b">
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "overview"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setActiveTab("overview")}
+            >
+              Overview
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "entries"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+              onClick={() => setActiveTab("entries")}
+            >
+              All Entries
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === "overview" && (
+            <div className="space-y-6">
+              {/* Quick Actions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Quick Actions</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Frequently used products for quick stock entry
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  {quickEntryProducts.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {quickEntryProducts.map((product) => (
+                        <Card
+                          key={product.id}
+                          className="hover:shadow-md transition-shadow"
                         >
-                          <div className="flex flex-col">
-                            <span className="font-medium">{product.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              SKU: {product.sku}{" "}
-                              {product.cost_price
-                                ? `| Price: ${formatCurrency(
-                                    product.cost_price
-                                  )}`
-                                : ""}
-                            </span>
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <div className="flex-1">
+                                <h4 className="font-medium text-sm">
+                                  {product.name}
+                                </h4>
+                                <p className="text-xs text-muted-foreground">
+                                  SKU: {product.sku}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Stock: {product.stock}
+                                </p>
+                              </div>
+                              <Package
+                                size={16}
+                                className="text-muted-foreground"
+                              />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 text-xs"
+                                onClick={() =>
+                                  handleQuickEntry(product, "purchase")
+                                }
+                              >
+                                <TrendingUp size={12} className="mr-1" />
+                                Purchase
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 text-xs"
+                                onClick={() =>
+                                  handleQuickEntry(product, "return")
+                                }
+                              >
+                                <RotateCcw size={12} className="mr-1" />
+                                Return
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Package size={48} className="mx-auto mb-2 opacity-40" />
+                      <p>No products available for quick entry</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Recent Entries */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Recent Entries</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Latest stock movements
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setActiveTab("entries")}
+                    className="flex items-center gap-2"
+                  >
+                    <Eye size={16} />
+                    View All
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {recentEntries.length > 0 ? (
+                    <div className="space-y-3">
+                      {recentEntries.map((entry, index) => {
+                        const config = getEntryTypeConfig(entry.entry_type);
+                        const IconComponent = config.icon;
+
+                        return (
+                          <div
+                            key={`recent-${entry.id}-${index}`}
+                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`p-2 rounded-full ${config.color}`}
+                              >
+                                <IconComponent size={16} />
+                              </div>
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {entry.product_name}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {formatDate(entry.date_added)} • Qty:{" "}
+                                  {entry.quantity}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-medium text-sm">
+                                {formatCurrency(
+                                  entry.quantity *
+                                    parseFloat(entry.cost_price || "")
+                                )}
+                              </p>
+                              <Badge className={`text-xs ${config.color}`}>
+                                {config.label}
+                              </Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Calendar size={48} className="mx-auto mb-2 opacity-40" />
+                      <p>No recent entries found</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "entries" && (
+            <div className="space-y-4">
+              {/* Filters */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="relative flex-1">
+                  <Search
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
+                    size={18}
+                  />
+                  <Input
+                    placeholder="Search entries..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 min-w-32"
+                    >
+                      <Filter size={16} />
+                      {filter === "all" ? "All Types" : filter}
+                      <ChevronDown size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setFilter("all")}>
+                      All Types
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilter("purchase")}>
+                      Purchases
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilter("return")}>
+                      Returns
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setFilter("adjustment")}>
+                      Adjustments
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Entries Table */}
+              {loading ? (
+                <div className="flex justify-center py-20">
+                  <Loader />
+                </div>
+              ) : (
+                <Card className="overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/40">
+                        <TableHead>Date</TableHead>
+                        <TableHead>Product</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-right">Quantity</TableHead>
+                        <TableHead className="text-right">Unit Price</TableHead>
+                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredStockEntries.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="h-60 text-center">
+                            <div className="flex flex-col items-center justify-center text-muted-foreground p-4">
+                              <Package size={48} className="mb-2 opacity-40" />
+                              <p className="mb-1">No stock entries found</p>
+                              <p className="text-sm">
+                                {searchTerm || filter !== "all"
+                                  ? "Try adjusting your filters"
+                                  : "Create your first stock entry"}
+                              </p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredStockEntries.map((entry, index) => {
+                          const config = getEntryTypeConfig(entry.entry_type);
+                          const IconComponent = config.icon;
+
+                          return (
+                            <TableRow
+                              key={`${entry.id}-${index}`}
+                              className="hover:bg-muted/50"
+                            >
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Calendar
+                                    size={14}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span className="text-sm">
+                                    {formatDate(entry.date_added)}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <Package
+                                    size={14}
+                                    className="text-muted-foreground"
+                                  />
+                                  <span className="font-medium">
+                                    {entry.product_name}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge
+                                  className={`${config.color} flex items-center gap-1 w-fit`}
+                                >
+                                  <IconComponent size={12} />
+                                  {config.label}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {entry.quantity}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {parseFloat(entry.cost_price || "")}
+                              </TableCell>
+                              <TableCell className="text-right font-medaium">
+                                {entry.quantity *
+                                  parseFloat(entry.cost_price || "")}
+                              </TableCell>
+                              <TableCell className="max-w-xs">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="truncate text-muted-foreground cursor-help">
+                                      {entry.notes || "-"}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="max-w-xs">
+                                      {entry.notes || "No notes"}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+
+                  {/* Load More */}
+                  {stockEntriesNextPage && (
+                    <div
+                      ref={stockEntriesLoadMoreRef}
+                      className="flex justify-center py-4 border-t"
+                    >
+                      {loadingMoreEntries ? (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Loader2 size={16} className="animate-spin" />
+                          <span>Loading more entries...</span>
+                        </div>
+                      ) : (
+                        <Button variant="ghost" size="sm">
+                          Load more entries
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Create Stock Entry Dialog */}
+          <Dialog
+            open={isCreateDialogOpen}
+            onOpenChange={setIsCreateDialogOpen}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedProduct
+                    ? `${selectedProduct.name} - New Entry`
+                    : "New Stock Entry"}
+                </DialogTitle>
+              </DialogHeader>
+              <form onSubmit={handleCreateStockEntry}>
+                <div className="grid gap-4 py-4">
+                  {!selectedProduct && (
+                    <div className="grid gap-2">
+                      <Label htmlFor="product">Product *</Label>
+                      <Select
+                        value={newStockEntry.product}
+                        onValueChange={(value) => {
+                          const selectedProd = products.find(
+                            (p) => p.id.toString() === value
+                          );
+                          setSelectedProduct(selectedProd || null);
+                          setNewStockEntry({
+                            ...newStockEntry,
+                            product: value,
+                            unit_price: selectedProd?.cost_price || 0,
+                            cost_price: selectedProd?.cost_price || 0,
+                            actual_selling_price:
+                              selectedProd?.selling_price || 0,
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-60">
+                          <div className="p-2">
+                            <Input
+                              placeholder="Search products..."
+                              value={productSearchTerm}
+                              onChange={(e) =>
+                                setProductSearchTerm(e.target.value)
+                              }
+                              className="mb-2"
+                            />
+                          </div>
+                          {filteredProducts.length > 0 ? (
+                            filteredProducts.map((product) => (
+                              <SelectItem
+                                key={product.id}
+                                value={product.id.toString()}
+                              >
+                                <div className="flex flex-col">
+                                  <span>{product.name}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    SKU: {product.sku} • Stock: {product.stock}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          ) : productSearchTerm ? (
+                            <div className="p-2 text-center text-muted-foreground text-sm">
+                              No products found
+                            </div>
+                          ) : (
+                            <div className="p-2 text-center text-muted-foreground text-sm">
+                              Type to search products
+                            </div>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="entry_type">Entry Type *</Label>
+                    <Select
+                      value={newStockEntry.entry_type}
+                      onValueChange={(value) =>
+                        setNewStockEntry({
+                          ...newStockEntry,
+                          entry_type: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="purchase">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp size={16} className="text-green-600" />
+                            Purchase
                           </div>
                         </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="entry_type">
-                  Entry Type <span className="text-red-500">*</span>
-                </Label>
-                <Select
-                  value={newStockEntry.entry_type}
-                  onValueChange={(value) =>
-                    setNewStockEntry({ ...newStockEntry, entry_type: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select entry type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="purchase">Purchase</SelectItem>
-                    <SelectItem value="return">Return</SelectItem>
-                    <SelectItem value="adjustment">Adjustment</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="quantity">
-                    Quantity <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={newStockEntry.quantity}
-                    onChange={(e) =>
-                      setNewStockEntry({
-                        ...newStockEntry,
-                        quantity: parseInt(e.target.value) || 0,
-                      })
-                    }
-                  />
+                        <SelectItem value="return">
+                          <div className="flex items-center gap-2">
+                            <RotateCcw size={16} className="text-amber-600" />
+                            Return
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="adjustment">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle size={16} className="text-blue-600" />
+                            Adjustment
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="quantity">Quantity *</Label>
+                      <Input
+                        id="quantity"
+                        type="number"
+                        min="1"
+                        value={newStockEntry.quantity}
+                        onChange={(e) =>
+                          setNewStockEntry({
+                            ...newStockEntry,
+                            quantity: parseInt(e.target.value) || 1,
+                          })
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="unit_price">Unit Price *</Label>
+                      <Input
+                        id="unit_price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newStockEntry.unit_price}
+                        onChange={(e) =>
+                          setNewStockEntry({
+                            ...newStockEntry,
+                            unit_price: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="cost_price">Cost Price *</Label>
+                      <Input
+                        id="cost_price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newStockEntry.cost_price}
+                        onChange={(e) =>
+                          setNewStockEntry({
+                            ...newStockEntry,
+                            cost_price: parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="actual_selling_price">
+                        Selling Price *
+                      </Label>
+                      <Input
+                        id="actual_selling_price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={newStockEntry.actual_selling_price}
+                        onChange={(e) =>
+                          setNewStockEntry({
+                            ...newStockEntry,
+                            actual_selling_price:
+                              parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Optional notes about this stock entry..."
+                      value={newStockEntry.notes}
+                      onChange={(e) =>
+                        setNewStockEntry({
+                          ...newStockEntry,
+                          notes: e.target.value,
+                        })
+                      }
+                      className="min-h-20"
+                    />
+                  </div>
+
+                  {selectedProduct && (
+                    <Card className="bg-muted/20">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-medium text-sm">
+                              {selectedProduct.name}
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              Current Stock: {selectedProduct.stock} units
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">
+                              Total:{" "}
+                              {formatCurrency(
+                                newStockEntry.quantity *
+                                  newStockEntry.unit_price
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="unit_price">
-                    Unit Price <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="unit_price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={newStockEntry.unit_price}
-                    onChange={(e) =>
-                      setNewStockEntry({
-                        ...newStockEntry,
-                        unit_price: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="notes">Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Add any additional information about this stock entry"
-                  value={newStockEntry.notes}
-                  onChange={(e) =>
-                    setNewStockEntry({
-                      ...newStockEntry,
-                      notes: e.target.value,
-                    })
-                  }
-                  className="resize-none h-20"
-                />
-              </div>
-            </div>
-            <DialogFooter className="flex justify-end gap-2 mt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsCreateDialogOpen(false);
-                  setProductSearchTerm("");
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!newStockEntry.product || newStockEntry.quantity <= 0}
-              >
-                Add Stock Entry
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+                <DialogFooter className="gap-2">
+                  <Button type="button" variant="outline" onClick={resetForm}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={!newStockEntry.product}>
+                    Create Entry
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </TooltipProvider>
+    </DashboardLayout>
   );
 }
 
-const StockEntriesPageWithLayout = () => {
-  return (
-    <DashboardLayout>
-      <StockEntriesPage />
-    </DashboardLayout>
-  );
-};
-
-export default StockEntriesPageWithLayout;
+export default StockEntriesPage;
